@@ -338,6 +338,18 @@ main{
   backdrop-filter: blur(8px);
 }
 
+/* ============== AI 试穿结果图 ============== */
+.ai-result{
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: contain;
+  background: radial-gradient(circle at 50% 40%, #0a1020, #05060c);
+  z-index: 3;
+  opacity: 0;
+  transition: opacity .55s ease;
+}
+.ai-result.show{ opacity: 1; }
+.ai-result.hidden{ display: none; }
+
 /* 3D 容器 */
 model-viewer{
   width: 100%; height: 100%;
@@ -546,6 +558,9 @@ model-viewer.hidden{ display: none; }
         <div class="ph-caption">DEMO PREVIEW · 示例图</div>
       </div>
 
+      <!-- AI 试穿结果图 -->
+      <img id="aiResult" class="ai-result hidden" alt="AI 试穿结果">
+
       <!-- 3D 模型容器（默认隐藏） -->
       <model-viewer
         id="mv"
@@ -599,7 +614,7 @@ model-viewer.hidden{ display: none; }
    状态
 ========================================================= */
 const state = {
-  person: null,
+  person: null,   // 上传的 File 对象
   garment: null,
   busy: false,
   tried: false,
@@ -670,46 +685,159 @@ bindUpload({
 });
 
 /* =========================================================
-   开始试穿
+   工具：压缩图片 → Data URL（JPEG）
+   目的：控制请求体积，避免超过 Vercel 4.5MB 请求体限制
 ========================================================= */
-const stages = [
+function compressImage(file, maxDim = 1024, quality = 0.85) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const w0 = img.naturalWidth || img.width;
+      const h0 = img.naturalHeight || img.height;
+      const scale = Math.min(1, maxDim / Math.max(w0, h0));
+      const w = Math.max(1, Math.round(w0 * scale));
+      const h = Math.max(1, Math.round(h0 * scale));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('图片解码失败，请换一张 JPG/PNG'));
+    };
+    img.src = objectUrl;
+  });
+}
+
+/* =========================================================
+   工具：处理阶段文案循环
+========================================================= */
+const STAGES = [
   '解析人像骨骼与体型数据…',
   '提取服装版型与布料材质…',
   'AI 布料物理模拟运算…',
   '渲染光影、褶皱与边缘细节…'
 ];
 
+function startStageLoop() {
+  let i = 0;
+  const el = $('#procText');
+  const tick = () => {
+    const text = STAGES[i % STAGES.length];
+    el.textContent = text;
+    setStatus(text);
+    i++;
+  };
+  tick();
+  return setInterval(tick, 1500);
+}
+
+/* =========================================================
+   工具：把 AI 结果图展示到右侧
+========================================================= */
+function showResult(imageUrl) {
+  const placeholder = $('#placeholder');
+  const mv = $('#mv');
+  const mvLoading = $('#mvLoading');
+  const aiResult = $('#aiResult');
+
+  placeholder.classList.add('fade-out');
+  setTimeout(() => placeholder.classList.add('hidden'), 460);
+
+  mv.classList.add('hidden');
+  mvLoading.classList.add('hidden');
+
+  aiResult.classList.remove('hidden');
+  aiResult.classList.remove('show');
+  // 强制 reflow，让 transition 生效
+  void aiResult.offsetWidth;
+
+  aiResult.onload = () => aiResult.classList.add('show');
+  aiResult.src = imageUrl;
+  // 兜底：如果 onload 迟迟不触发，也强制显示
+  setTimeout(() => aiResult.classList.add('show'), 1500);
+}
+
+/* =========================================================
+   开始试穿：真实调用 /api/tryon
+========================================================= */
 $('#btnTry').addEventListener('click', async () => {
   if (state.busy) return;
+
+  if (!state.person || !state.garment) {
+    setStatus('请先上传人像和服装两张图片');
+    return;
+  }
 
   const btn = $('#btnTry');
   const btnText = btn.querySelector('.btn-text');
   const processing = $('#processing');
+  const badge = $('#stageBadge');
 
   state.busy = true;
   btn.disabled = true;
   btnText.textContent = 'AI 融合中…';
+  badge.textContent = 'RENDERING';
+  badge.classList.add('live');
   processing.classList.add('active');
 
-  for (const stage of stages) {
-    $('#procText').textContent = stage;
-    setStatus(stage);
-    await wait(560);
+  const stageTimer = startStageLoop();
+
+  try {
+    // 1) 本地图片压缩成 base64（阿里云 AI 试衣支持 base64 输入）
+    const [personData, garmentData] = await Promise.all([
+      compressImage(state.person),
+      compressImage(state.garment)
+    ]);
+
+    // 2) 调用后端代理
+    const resp = await fetch('/api/tryon', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        person_image_url: personData,
+        garment_image_url: garmentData,
+        garment_type: 'top' // top | bottom | dress
+      })
+    });
+
+    // 3) 解析结果（后端可能返回非 JSON，比如超时页）
+    let data = null;
+    try { data = await resp.json(); } catch (_) { /* ignore */ }
+
+    if (!resp.ok || !data || !data.success) {
+      const msg = (data && (data.error || data.message)) || `HTTP ${resp.status}`;
+      throw new Error(msg);
+    }
+
+    // 4) 展示真实结果图
+    showResult(data.image_url);
+
+    state.tried = true;
+    badge.textContent = 'AI RESULT';
+    badge.classList.add('live');
+    setStatus('试穿完成 · AI 结果已生成');
+    revealThreeDButton();
+    renderAIComment();
+  } catch (err) {
+    console.error('[tryon] failed:', err);
+    setStatus('试穿失败：' + err.message);
+    badge.textContent = 'ERROR';
+  } finally {
+    clearInterval(stageTimer);
+    processing.classList.remove('active');
+    btn.disabled = false;
+    btnText.textContent = state.tried ? '重新试穿' : '开始试穿';
+    state.busy = false;
   }
-
-  processing.classList.remove('active');
-  btn.disabled = false;
-  btnText.textContent = '重新试穿';
-  state.busy = false;
-  state.tried = true;
-
-  const badge = $('#stageBadge');
-  badge.textContent = 'AI RESULT';
-  badge.classList.add('live');
-
-  setStatus('试穿完成 · AI 点评已生成');
-  revealThreeDButton();
-  renderAIComment();
 });
 
 /* =========================================================
@@ -723,7 +851,7 @@ function revealThreeDButton() {
 }
 
 /* =========================================================
-   生成 360° 3D 展示（假数据）
+   生成 360° 3D 展示（演示数据，可保留）
 ========================================================= */
 $('#btn360').addEventListener('click', () => {
   if (state.threeD) return;
@@ -732,13 +860,13 @@ $('#btn360').addEventListener('click', () => {
   const placeholder = $('#placeholder');
   const mv = $('#mv');
   const mvLoading = $('#mvLoading');
+  const aiResult = $('#aiResult');
   const btn = $('#btn360');
 
-  // 假图淡出
   placeholder.classList.add('fade-out');
   setTimeout(() => placeholder.classList.add('hidden'), 460);
+  aiResult.classList.add('hidden');
 
-  // 显示 3D 容器
   mv.classList.remove('hidden');
   mvLoading.classList.remove('hidden');
 
@@ -747,14 +875,12 @@ $('#btn360').addEventListener('click', () => {
   btn.querySelector('.btn-text').textContent = '360° 展示已开启';
   btn.disabled = true;
 
-  // 模型加载完成
   const onLoaded = () => {
     mvLoading.classList.add('hidden');
     setStatus('360° 展示已就绪 · 拖拽旋转 / 双指缩放');
   };
   mv.addEventListener('load', onLoaded, { once: true });
 
-  // 兜底：若加载事件迟迟未触发
   setTimeout(() => {
     if (!mvLoading.classList.contains('hidden')) {
       mvLoading.classList.add('hidden');
@@ -762,7 +888,6 @@ $('#btn360').addEventListener('click', () => {
     }
   }, 6000);
 
-  // 加载失败兜底
   mv.addEventListener('error', () => {
     mvLoading.classList.add('hidden');
     setStatus('3D 模型加载失败，请检查网络后重试');
@@ -770,7 +895,7 @@ $('#btn360').addEventListener('click', () => {
 });
 
 /* =========================================================
-   AI 点评（打字机效果）
+   AI 点评（打字机效果，演示文案，可后续接 LLM）
 ========================================================= */
 const COMMENTS = [
   { tag: '风格', text: '赛博机能风，冷色光晕强化了肩线与整体轮廓结构。' },
