@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>360° AI 智能试衣间 · NEON FITTING ROOM</title>
+<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+<style>
+/* ================= 基础 & 变量 ================= */
+*, *::before, *::after { box-sizing: border-box; }
+
+:root{
+  --cyan: #00eaff;
+  --magenta: #ff35d0;
+  --violet: #8a5cff;
+  --ink: #e6f7ff;
+  --muted: rgba(190, 222, 255, .55);
+  --glass-bg: linear-gradient(160deg, rgba(255,255,255,.075), rgba(255,255,255,.02));
+  --glass-brd: rgba(255,255,255,.12);
+}
+
+html, body{ height: 100%; }
+
+body{
+  margin: 0;
+  padding: 20px 24px 24px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow: hidden;
+  color: var(--ink);
+  font-family: "Segoe UI", system-ui, -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+  background:
+    radial-gradient(1100px 700px at 12% -10%, rgba(0,234,255,.16), transparent 62%),
+    radial-gradient(900px 700px at 100% 0%,   rgba(255,53,208,.14), transparent 60%),
+    radial-gradient(900px 800px at 55% 120%,  rgba(138,92,255,.18), transparent 65%),
+    #05060c;
+}
+
+/* 背景网格 */
+.bg-grid{
+  position: fixed; inset: 0; z-index: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(0,234,255,.055) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,234,255,.055) 1px, transparent 1px);
+  background-size: 46px 46px;
+  -webkit-mask-image: radial-gradient(circle at 50% 35%, #000 10%, transparent 78%);
+          mask-image: radial-gradient(circle at 50% 35%, #000 10%, transparent 78%);
+}
+
+/* ================= 通用玻璃面板 ================= */
+.glass{
+  position: relative;
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-brd);
+  border-radius: 20px;
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  box-shadow:
+    0 22px 55px rgba(0,0,0,.55),
+    inset 0 1px 0 rgba(255,255,255,.14),
+    inset 0 0 60px rgba(0,234,255,.03);
+}
+
+/* ================= 顶部 HUD ================= */
+.hud{
+  position: relative; z-index: 2;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 16px; flex-wrap: wrap;
+}
+.brand{ display: flex; align-items: center; gap: 14px; }
+.brand-icon{
+  width: 44px; height: 44px; border-radius: 13px;
+  display: grid; place-items: center;
+  font-size: 20px; color: #031018; font-weight: 900;
+  background: linear-gradient(135deg, var(--cyan), var(--violet) 55%, var(--magenta));
+  box-shadow: 0 0 22px rgba(0,234,255,.55), 0 0 60px rgba(255,53,208,.25);
+  animation: floatY 4s ease-in-out infinite;
+}
+@keyframes floatY{ 0%,100%{ transform: translateY(0); } 50%{ transform: translateY(-4px); } }
+
+.brand h1{
+  margin: 0; font-size: 19px; font-weight: 700; letter-spacing: .06em;
+  background: linear-gradient(90deg, #ffffff, var(--cyan) 45%, var(--magenta));
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 12px rgba(0,234,255,.35));
+}
+.brand p{
+  margin: 3px 0 0; font-size: 10px; letter-spacing: .28em; color: var(--muted);
+  text-transform: uppercase;
+}
+
+.hud-tags{ display: flex; gap: 10px; flex-wrap: wrap; }
+.tag{
+  font-size: 10px; letter-spacing: .18em; padding: 7px 12px;
+  border-radius: 999px; color: rgba(200,240,255,.8);
+  border: 1px solid rgba(255,255,255,.14);
+  background: rgba(255,255,255,.04);
+  backdrop-filter: blur(10px);
+}
+.tag.online{
+  color: #7bffd4; border-color: rgba(123,255,212,.4);
+  box-shadow: 0 0 18px rgba(123,255,212,.22), inset 0 0 14px rgba(123,255,212,.08);
+}
+
+/* ================= 主布局 ================= */
+main{
+  position: relative; z-index: 2;
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: 380px minmax(0, 1fr);
+  gap: 18px;
+}
+
+/* ================= 面板头 ================= */
+.panel-head{
+  display: flex; align-items: center; gap: 10px;
+  padding-bottom: 12px; margin-bottom: 16px;
+  border-bottom: 1px solid rgba(255,255,255,.08);
+}
+.panel-head h2{
+  margin: 0; font-size: 13px; font-weight: 600;
+  letter-spacing: .18em; color: #eafbff;
+}
+.head-sub{ font-size: 9px; letter-spacing: .24em; color: var(--muted); }
+.dot{
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--cyan); box-shadow: 0 0 12px var(--cyan);
+  animation: blink 2.2s ease-in-out infinite;
+}
+.dot.magenta{ background: var(--magenta); box-shadow: 0 0 12px var(--magenta); }
+@keyframes blink{ 0%,100%{ opacity: 1; } 50%{ opacity: .35; } }
+
+.badge{
+  margin-left: auto;
+  font-size: 9px; letter-spacing: .2em; padding: 5px 11px;
+  border-radius: 999px; color: rgba(200,240,255,.75);
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(255,255,255,.05);
+  transition: .4s;
+}
+.badge.live{
+  color: #05131a; font-weight: 800;
+  background: linear-gradient(90deg, var(--cyan), var(--violet));
+  border-color: transparent;
+  box-shadow: 0 0 22px rgba(0,234,255,.6);
+}
+
+/* ================= 左侧控制台 ================= */
+.console{
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 18px; min-height: 0; overflow-y: auto;
+}
+.console::-webkit-scrollbar{ width: 6px; }
+.console::-webkit-scrollbar-thumb{ background: rgba(0,234,255,.25); border-radius: 99px; }
+
+.upload-row{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.upload-box{
+  position: relative;
+  aspect-ratio: 4 / 5;
+  border-radius: 15px;
+  border: 1px dashed rgba(0,234,255,.35);
+  background: rgba(0,234,255,.035);
+  display: grid; place-items: center;
+  cursor: pointer; overflow: hidden;
+  transition: border-color .28s, box-shadow .28s, background .28s, transform .28s;
+}
+.upload-box:hover{
+  border-color: var(--cyan);
+  background: rgba(0,234,255,.07);
+  box-shadow: 0 0 26px rgba(0,234,255,.35), inset 0 0 34px rgba(0,234,255,.09);
+  transform: translateY(-2px);
+}
+.upload-box.dragging{
+  border-color: var(--magenta);
+  box-shadow: 0 0 30px rgba(255,53,208,.45), inset 0 0 34px rgba(255,53,208,.12);
+}
+.upload-inner{
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 10px; text-align: center; pointer-events: none;
+}
+.upload-inner svg{
+  width: 26px; height: 26px; stroke: var(--cyan);
+  filter: drop-shadow(0 0 8px rgba(0,234,255,.75));
+}
+.u-title{ font-size: 12px; letter-spacing: .1em; color: #d6f4ff; }
+.u-sub{ font-size: 8.5px; letter-spacing: .22em; color: var(--muted); }
+
+.preview{
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; display: none;
+}
+.upload-box.has-image{ border-style: solid; border-color: rgba(0,234,255,.6); }
+.upload-box.has-image .preview{ display: block; }
+.upload-box.has-image .upload-inner{ display: none; }
+.upload-box.has-image::after{
+  content: "✓";
+  position: absolute; top: 8px; right: 8px;
+  width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 11px; font-weight: 900; color: #03131a;
+  background: linear-gradient(135deg, var(--cyan), #7bffd4);
+  box-shadow: 0 0 14px rgba(0,234,255,.8);
+}
+
+.hint{
+  font-size: 10.5px; letter-spacing: .06em; color: var(--muted);
+  text-align: center; margin-top: -4px;
+}
+
+/* ================= 按钮 ================= */
+.btn{
+  position: relative; overflow: hidden;
+  width: 100%; padding: 15px 18px;
+  display: flex; align-items: center; justify-content: center; gap: 10px;
+  border-radius: 14px;
+  font-family: inherit; font-size: 14.5px; font-weight: 700;
+  letter-spacing: .14em; color: #eafcff;
+  cursor: pointer;
+  border: 1px solid rgba(0,234,255,.45);
+  background: linear-gradient(120deg, rgba(0,234,255,.18), rgba(138,92,255,.16) 50%, rgba(255,53,208,.16));
+  box-shadow: 0 10px 26px rgba(0,0,0,.45), inset 0 0 20px rgba(0,234,255,.12);
+  transition: transform .25s, box-shadow .3s, border-color .3s, opacity .3s;
+  text-shadow: 0 0 14px rgba(0,234,255,.55);
+}
+.btn::before{
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(110deg, transparent 32%, rgba(255,255,255,.38) 50%, transparent 68%);
+  transform: translateX(-130%);
+  transition: transform .75s ease;
+  pointer-events: none;
+}
+.btn:hover::before{ transform: translateX(130%); }
+.btn:hover{
+  transform: translateY(-2px);
+  border-color: var(--cyan);
+  box-shadow:
+    0 0 28px rgba(0,234,255,.55),
+    0 0 72px rgba(0,234,255,.22),
+    inset 0 0 28px rgba(0,234,255,.25);
+}
+.btn:active{ transform: translateY(0) scale(.99); }
+.btn:disabled{ opacity: .55; cursor: not-allowed; transform: none; }
+
+.btn-primary{ animation: glowCyan 2.8s ease-in-out infinite; }
+@keyframes glowCyan{
+  0%,100%{ box-shadow: 0 10px 26px rgba(0,0,0,.45), 0 0 16px rgba(0,234,255,.35), inset 0 0 18px rgba(0,234,255,.12); }
+  50%    { box-shadow: 0 10px 26px rgba(0,0,0,.45), 0 0 34px rgba(0,234,255,.75), 0 0 70px rgba(0,234,255,.28), inset 0 0 26px rgba(0,234,255,.24); }
+}
+
+.btn-secondary{
+  border-color: rgba(255,53,208,.5);
+  background: linear-gradient(120deg, rgba(255,53,208,.2), rgba(138,92,255,.2));
+  text-shadow: 0 0 14px rgba(255,53,208,.6);
+  opacity: 0; transform: translateY(10px);
+  transition: opacity .45s ease, transform .45s ease, box-shadow .3s, border-color .3s;
+}
+.btn-secondary.show{
+  opacity: 1; transform: translateY(0);
+  animation: glowMagenta 2.4s ease-in-out infinite;
+}
+.btn-secondary.show:hover{
+  border-color: var(--magenta);
+  box-shadow: 0 0 30px rgba(255,53,208,.6), 0 0 76px rgba(255,53,208,.25), inset 0 0 26px rgba(255,53,208,.28);
+}
+@keyframes glowMagenta{
+  0%,100%{ box-shadow: 0 10px 26px rgba(0,0,0,.45), 0 0 18px rgba(255,53,208,.35), inset 0 0 18px rgba(255,53,208,.14); }
+  50%    { box-shadow: 0 10px 26px rgba(0,0,0,.45), 0 0 38px rgba(255,53,208,.7), 0 0 80px rgba(255,53,208,.25), inset 0 0 26px rgba(255,53,208,.24); }
+}
+
+/* ================= 状态行 ================= */
+.status-line{
+  margin-top: auto; padding-top: 10px;
+  border-top: 1px solid rgba(255,255,255,.07);
+  display: flex; align-items: center; gap: 9px;
+  font-size: 11px; letter-spacing: .05em; color: var(--muted);
+}
+.pulse{
+  width: 7px; height: 7px; border-radius: 50%; flex: none;
+  background: #7bffd4;
+  box-shadow: 0 0 10px #7bffd4;
+  animation: blink 1.6s ease-in-out infinite;
+}
+
+/* ================= 右侧舞台 ================= */
+.stage{
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 18px; min-height: 0;
+}
+
+.viewer{
+  position: relative;
+  flex: 1; min-height: 0;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid rgba(0,234,255,.18);
+  background:
+    radial-gradient(circle at 50% 25%, rgba(0,234,255,.12), transparent 62%),
+    radial-gradient(circle at 50% 110%, rgba(138,92,255,.28), transparent 60%),
+    rgba(3,7,16,.85);
+  box-shadow: inset 0 0 70px rgba(0,0,0,.7);
+}
+
+/* 默认假图 */
+.placeholder{
+  position: absolute; inset: 0;
+  transition: opacity .45s ease, transform .45s ease;
+}
+.placeholder.fade-out{ opacity: 0; transform: scale(1.03); pointer-events: none; }
+.placeholder img{
+  width: 100%; height: 100%; object-fit: cover; display: block;
+  filter: saturate(.85) contrast(1.06);
+}
+.ph-overlay{
+  position: absolute; inset: 0;
+  background:
+    linear-gradient(180deg, rgba(0,234,255,.20), transparent 42%, rgba(255,53,208,.22)),
+    radial-gradient(circle at 50% 115%, rgba(138,92,255,.45), transparent 62%);
+  mix-blend-mode: screen;
+}
+.scanline{
+  position: absolute; left: 0; right: 0; height: 130px;
+  background: linear-gradient(180deg, transparent, rgba(0,234,255,.22), transparent);
+  animation: scanDown 3.6s linear infinite;
+  pointer-events: none;
+}
+@keyframes scanDown{ 0%{ top: -140px; } 100%{ top: 100%; } }
+
+.ph-caption{
+  position: absolute; left: 14px; bottom: 14px;
+  font-size: 9.5px; letter-spacing: .24em;
+  color: rgba(200,240,255,.75);
+  padding: 6px 12px; border-radius: 999px;
+  border: 1px solid rgba(255,255,255,.16);
+  background: rgba(3,10,20,.55);
+  backdrop-filter: blur(8px);
+}
+
+/* 3D 容器 */
+model-viewer{
+  width: 100%; height: 100%;
+  display: block;
+  background: transparent;
+  --poster-color: transparent;
+  --progress-bar-color: transparent;
+  --progress-mask: transparent;
+}
+model-viewer::part(default-progress-bar){ display: none; }
+model-viewer.hidden{ display: none; }
+
+/* 处理中遮罩 */
+.processing{
+  position: absolute; inset: 0; z-index: 6;
+  display: none; place-items: center;
+  background: rgba(3,8,18,.5);
+  backdrop-filter: blur(3px);
+}
+.processing.active{ display: grid; }
+.proc-scan{
+  position: absolute; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--cyan) 50%, transparent);
+  box-shadow: 0 0 24px var(--cyan), 0 0 60px rgba(0,234,255,.6);
+  animation: scanY 1.5s ease-in-out infinite;
+}
+@keyframes scanY{ 0%{ top: 8%; } 50%{ top: 92%; } 100%{ top: 8%; } }
+.proc-label{
+  display: flex; align-items: center; gap: 10px;
+  font-size: 12.5px; letter-spacing: .14em; color: #dff7ff;
+  padding: 12px 20px; border-radius: 999px;
+  border: 1px solid rgba(0,234,255,.4);
+  background: rgba(4,12,24,.75);
+  box-shadow: 0 0 30px rgba(0,234,255,.35);
+  backdrop-filter: blur(10px);
+}
+
+.spinner{
+  width: 15px; height: 15px; border-radius: 50%; flex: none;
+  border: 2px solid rgba(0,234,255,.22);
+  border-top-color: var(--cyan);
+  animation: spin .8s linear infinite;
+}
+@keyframes spin{ to{ transform: rotate(360deg); } }
+
+/* 3D 加载提示 */
+.mv-loading{
+  position: absolute; inset: 0; z-index: 5;
+  display: grid; place-items: center;
+  font-size: 12px; letter-spacing: .16em; color: #cdefff;
+  background: rgba(3,8,18,.55);
+  backdrop-filter: blur(2px);
+}
+.mv-loading.hidden{ display: none; }
+
+/* ================= AI 点评 ================= */
+.ai-card{
+  flex: 0 0 auto;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,.1);
+  background: linear-gradient(150deg, rgba(138,92,255,.12), rgba(0,234,255,.05));
+  padding: 14px 16px;
+  max-height: 232px;
+  overflow-y: auto;
+  box-shadow: inset 0 0 40px rgba(0,234,255,.05);
+}
+.ai-card::-webkit-scrollbar{ width: 6px; }
+.ai-card::-webkit-scrollbar-thumb{ background: rgba(138,92,255,.4); border-radius: 99px; }
+
+.ai-head{ display: flex; align-items: center; gap: 9px; margin-bottom: 10px; }
+.ai-icon{
+  width: 22px; height: 22px; border-radius: 7px;
+  display: grid; place-items: center; font-size: 11px;
+  color: #05131a; font-weight: 900;
+  background: linear-gradient(135deg, var(--cyan), var(--violet));
+  box-shadow: 0 0 16px rgba(0,234,255,.55);
+}
+.ai-head h3{ margin: 0; font-size: 12.5px; letter-spacing: .16em; font-weight: 600; }
+.ai-sub{ font-size: 9px; letter-spacing: .22em; color: var(--muted); margin-left: auto; }
+
+.ai-body{ display: flex; flex-direction: column; gap: 9px; }
+.ai-empty{ margin: 0; font-size: 12px; color: var(--muted); letter-spacing: .04em; line-height: 1.7; }
+
+.ai-row{
+  display: flex; gap: 10px; align-items: flex-start;
+  font-size: 12.5px; line-height: 1.65; color: #d9f3ff;
+  animation: fadeUp .45s ease both;
+}
+@keyframes fadeUp{ from{ opacity: 0; transform: translateY(8px); } to{ opacity: 1; transform: none; } }
+.ai-tag{
+  flex: none; margin-top: 1px;
+  font-size: 9.5px; letter-spacing: .12em; padding: 3px 9px;
+  border-radius: 999px; color: var(--cyan);
+  border: 1px solid rgba(0,234,255,.4);
+  background: rgba(0,234,255,.1);
+  box-shadow: 0 0 14px rgba(0,234,255,.2);
+}
+.ai-text{ white-space: pre-wrap; }
+.ai-text::after{
+  content: "▌"; color: var(--cyan); margin-left: 2px;
+  animation: blink .9s step-end infinite;
+}
+.ai-row.done .ai-text::after{ content: ""; }
+
+/* ================= 响应式 ================= */
+@media (max-width: 980px){
+  html, body{ height: auto; }
+  body{ overflow: auto; padding: 16px; }
+  main{ grid-template-columns: 1fr; }
+  .viewer{ min-height: 440px; }
+  .console{ overflow: visible; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+
+<!-- ============ 顶部 HUD ============ -->
+<header class="hud">
+  <div class="brand">
+    <div class="brand-icon">◈</div>
+    <div>
+      <h1>360° AI 智能试衣间</h1>
+      <p>AI Virtual Fitting Room · v2.4</p>
+    </div>
+  </div>
+  <div class="hud-tags">
+    <span class="tag online">● SYSTEM ONLINE</span>
+    <span class="tag">GPU · NEURAL RENDER</span>
+  </div>
+</header>
+
+<!-- ============ 主区域 ============ -->
+<main>
+
+  <!-- ---------- 左侧控制台 ---------- -->
+  <aside class="glass console">
+    <div class="panel-head">
+      <span class="dot"></span>
+      <h2>控制台</h2>
+      <span class="head-sub">CONSOLE</span>
+    </div>
+
+    <div class="upload-row">
+      <!-- 人像上传 -->
+      <div class="upload-box" id="boxPerson">
+        <input type="file" accept="image/*" id="filePerson" hidden>
+        <div class="upload-inner">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="8" r="4"></circle>
+            <path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"></path>
+          </svg>
+          <span class="u-title">上传人像</span>
+          <span class="u-sub">PORTRAIT</span>
+        </div>
+        <img class="preview" id="prevPerson" alt="人像预览">
+      </div>
+
+      <!-- 衣服上传 -->
+      <div class="upload-box" id="boxGarment">
+        <input type="file" accept="image/*" id="fileGarment" hidden>
+        <div class="upload-inner">
+          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3l4 2 4-2 4 4-3 3v11H7V10L4 7l4-4z"></path>
+          </svg>
+          <span class="u-title">上传衣服</span>
+          <span class="u-sub">GARMENT</span>
+        </div>
+        <img class="preview" id="prevGarment" alt="服装预览">
+      </div>
+    </div>
+
+    <div class="hint">支持 JPG / PNG · 建议正面全身照与白底服装图</div>
+
+    <button class="btn btn-primary" id="btnTry">
+      <span class="btn-text">开始试穿</span>
+    </button>
+
+    <button class="btn btn-secondary hidden" id="btn360">
+      <span class="btn-text">生成 360° 3D 展示</span>
+    </button>
+
+    <div class="status-line">
+      <span class="pulse"></span>
+      <span id="status">等待素材输入…</span>
+    </div>
+  </aside>
+
+  <!-- ---------- 右侧展示区 ---------- -->
+  <section class="glass stage">
+    <div class="panel-head">
+      <span class="dot magenta"></span>
+      <h2>展示区</h2>
+      <span class="head-sub">HOLO STAGE</span>
+      <span class="badge" id="stageBadge">DEMO</span>
+    </div>
+
+    <div class="viewer" id="viewer">
+
+      <!-- 默认假图 -->
+      <div class="placeholder" id="placeholder">
+        <img src="https://picsum.photos/seed/cyberfittingroom/900/1100" alt="示例展示图">
+        <div class="ph-overlay"></div>
+        <div class="scanline"></div>
+        <div class="ph-caption">DEMO PREVIEW · 示例图</div>
+      </div>
+
+      <!-- 3D 模型容器（默认隐藏） -->
+      <model-viewer
+        id="mv"
+        class="hidden"
+        src="https://modelviewer.dev/shared-assets/models/Astronaut.glb"
+        alt="360° 3D 试穿模型"
+        auto-rotate
+        auto-rotate-delay="0"
+        rotation-per-second="32deg"
+        camera-controls
+        touch-action="pan-y"
+        environment-image="neutral"
+        shadow-intensity="1"
+        exposure="1.1"
+        interaction-prompt="none">
+      </model-viewer>
+
+      <!-- 3D 加载提示 -->
+      <div class="mv-loading hidden" id="mvLoading">
+        <span class="spinner"></span>&nbsp;&nbsp;正在载入 3D 模型…
+      </div>
+
+      <!-- 处理中遮罩 -->
+      <div class="processing" id="processing">
+        <div class="proc-scan"></div>
+        <div class="proc-label">
+          <span class="spinner"></span>
+          <span id="procText">AI 解析中…</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- AI 点评 -->
+    <div class="ai-card">
+      <div class="ai-head">
+        <span class="ai-icon">✦</span>
+        <h3>AI 点评</h3>
+        <span class="ai-sub">AI REVIEW</span>
+      </div>
+      <div class="ai-body" id="aiBody">
+        <p class="ai-empty">上传人像与服装后，点击「开始试穿」即可获取 AI 智能点评。</p>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<script>
+/* =========================================================
+   状态
+========================================================= */
+const state = {
+  person: null,
+  garment: null,
+  busy: false,
+  tried: false,
+  threeD: false,
+  typingToken: 0
+};
+
+const $ = (sel) => document.querySelector(sel);
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const setStatus = (text) => { $('#status').textContent = text; };
+
+/* =========================================================
+   图片上传
+========================================================= */
+function bindUpload({ boxSel, inputSel, previewSel, key, name }) {
+  const box = $(boxSel);
+  const input = $(inputSel);
+  const preview = $(previewSel);
+
+  box.addEventListener('click', () => input.click());
+
+  input.addEventListener('change', () => {
+    const file = input.files && input.files[0];
+    if (file) load(file);
+  });
+
+  ['dragenter', 'dragover'].forEach((ev) =>
+    box.addEventListener(ev, (e) => {
+      e.preventDefault();
+      box.classList.add('dragging');
+    })
+  );
+
+  ['dragleave', 'drop'].forEach((ev) =>
+    box.addEventListener(ev, (e) => {
+      e.preventDefault();
+      box.classList.remove('dragging');
+    })
+  );
+
+  box.addEventListener('drop', (e) => {
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) load(file);
+  });
+
+  function load(file) {
+    preview.src = URL.createObjectURL(file);
+    box.classList.add('has-image');
+    state[key] = file;
+    setStatus(`${name}已载入 · ${Math.max(1, Math.round(file.size / 1024))} KB`);
+    checkReady();
+  }
+}
+
+function checkReady() {
+  if (state.person && state.garment) {
+    setStatus('素材已就绪 · 点击「开始试穿」启动 AI 融合');
+  }
+}
+
+bindUpload({
+  boxSel: '#boxPerson', inputSel: '#filePerson',
+  previewSel: '#prevPerson', key: 'person', name: '人像'
+});
+bindUpload({
+  boxSel: '#boxGarment', inputSel: '#fileGarment',
+  previewSel: '#prevGarment', key: 'garment', name: '服装'
+});
+
+/* =========================================================
+   开始试穿
+========================================================= */
+const stages = [
+  '解析人像骨骼与体型数据…',
+  '提取服装版型与布料材质…',
+  'AI 布料物理模拟运算…',
+  '渲染光影、褶皱与边缘细节…'
+];
+
+$('#btnTry').addEventListener('click', async () => {
+  if (state.busy) return;
+
+  const btn = $('#btnTry');
+  const btnText = btn.querySelector('.btn-text');
+  const processing = $('#processing');
+
+  state.busy = true;
+  btn.disabled = true;
+  btnText.textContent = 'AI 融合中…';
+  processing.classList.add('active');
+
+  for (const stage of stages) {
+    $('#procText').textContent = stage;
+    setStatus(stage);
+    await wait(560);
+  }
+
+  processing.classList.remove('active');
+  btn.disabled = false;
+  btnText.textContent = '重新试穿';
+  state.busy = false;
+  state.tried = true;
+
+  const badge = $('#stageBadge');
+  badge.textContent = 'AI RESULT';
+  badge.classList.add('live');
+
+  setStatus('试穿完成 · AI 点评已生成');
+  revealThreeDButton();
+  renderAIComment();
+});
+
+/* =========================================================
+   显示「生成 360° 3D 展示」按钮
+========================================================= */
+function revealThreeDButton() {
+  const btn = $('#btn360');
+  if (btn.classList.contains('show')) return;
+  btn.classList.remove('hidden');
+  requestAnimationFrame(() => btn.classList.add('show'));
+}
+
+/* =========================================================
+   生成 360° 3D 展示（假数据）
+========================================================= */
+$('#btn360').addEventListener('click', () => {
+  if (state.threeD) return;
+  state.threeD = true;
+
+  const placeholder = $('#placeholder');
+  const mv = $('#mv');
+  const mvLoading = $('#mvLoading');
+  const btn = $('#btn360');
+
+  // 假图淡出
+  placeholder.classList.add('fade-out');
+  setTimeout(() => placeholder.classList.add('hidden'), 460);
+
+  // 显示 3D 容器
+  mv.classList.remove('hidden');
+  mvLoading.classList.remove('hidden');
+
+  $('#stageBadge').textContent = '360° LIVE';
+  setStatus('3D 模型加载中…');
+  btn.querySelector('.btn-text').textContent = '360° 展示已开启';
+  btn.disabled = true;
+
+  // 模型加载完成
+  const onLoaded = () => {
+    mvLoading.classList.add('hidden');
+    setStatus('360° 展示已就绪 · 拖拽旋转 / 双指缩放');
+  };
+  mv.addEventListener('load', onLoaded, { once: true });
+
+  // 兜底：若加载事件迟迟未触发
+  setTimeout(() => {
+    if (!mvLoading.classList.contains('hidden')) {
+      mvLoading.classList.add('hidden');
+      setStatus('360° 展示已就绪 · 拖拽旋转 / 双指缩放');
+    }
+  }, 6000);
+
+  // 加载失败兜底
+  mv.addEventListener('error', () => {
+    mvLoading.classList.add('hidden');
+    setStatus('3D 模型加载失败，请检查网络后重试');
+  }, { once: true });
+});
+
+/* =========================================================
+   AI 点评（打字机效果）
+========================================================= */
+const COMMENTS = [
+  { tag: '风格', text: '赛博机能风，冷色光晕强化了肩线与整体轮廓结构。' },
+  { tag: '版型', text: '匹配度 92%，袖口与腰线贴合自然，垂坠感良好。' },
+  { tag: '配色', text: '建议内搭替换为低饱和灰蓝，突出外层荧光描边。' },
+  { tag: '细节', text: '领口层次略显厚重，可减少一层叠穿提升呼吸感。' }
+];
+
+async function renderAIComment() {
+  const token = ++state.typingToken;
+  const body = $('#aiBody');
+  body.innerHTML = '';
+
+  for (const item of COMMENTS) {
+    if (token !== state.typingToken) return;
+
+    const row = document.createElement('div');
+    row.className = 'ai-row';
+    row.innerHTML = `<span class="ai-tag">${item.tag}</span><span class="ai-text"></span>`;
+    body.appendChild(row);
+
+    const textEl = row.querySelector('.ai-text');
+    await typeText(textEl, item.text, 18);
+    row.classList.add('done');
+
+    await wait(140);
+  }
+}
+
+function typeText(el, text, speed) {
+  return new Promise((resolve) => {
+    let i = 0;
+    const timer = setInterval(() => {
+      el.textContent = text.slice(0, ++i);
+      if (i >= text.length) {
+        clearInterval(timer);
+        resolve();
+      }
+    }, speed);
+  });
+}
+
+/* =========================================================
+   初始化
+========================================================= */
+setStatus('等待素材输入…');
+</script>
+</body>
+</html>
