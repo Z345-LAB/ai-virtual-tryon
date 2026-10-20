@@ -711,7 +711,7 @@ model-viewer.hidden{ display: none; }
    配置与状态
 ========================================================= */
 const DEMO_MODEL_URL = 'https://modelviewer.dev/shared-assets/models/Astronaut.glb';
-const TRYON_TIMEOUT_MS = 180000; // 后端自身 150 秒超时，前端多留 30 秒缓冲，保证能看到后端的具体报错
+const TRYON_TIMEOUT_MS = 90000; // 后端走同步调用，通常 10–20 秒；云函数最长 60 秒，这里留余量
 const BACKEND_PORT = '3000';     // 与 .env 里的 PORT 保持一致
 
 /* 你指定的示例图链接 */
@@ -977,7 +977,7 @@ async function doTryOn() {
     const personData = await getPersonDataUrl();
     if (!personData) throw new Error('角色底图读取失败');
 
-    const apiUrl = getApiUrl('/functions/tryon');
+    const apiUrl = getApiUrl('/api/tryon');
     const resp = await fetch(apiUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1012,7 +1012,7 @@ async function doTryOn() {
   } catch (err) {
     console.error('[tryon] failed:', err);
     if (err.name === 'AbortError') {
-      setStatus('换装超时（已等待约 180 秒），请稍后重试');
+      setStatus('换装超时（已等待约 90 秒），请稍后重试');
     } else if (err.message.includes('Failed to parse URL') || err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
       setStatus(`请求失败：连不上后端 ${API_BASE || location.origin}，请确认服务已启动且端口一致`);
     } else {
@@ -1093,7 +1093,7 @@ $('#btn360').addEventListener('click', async () => {
   setStatus('正在提交 3D 生成任务…');
 
   try {
-    const createUrl = getApiUrl('/functions/create3d');
+    const createUrl = getApiUrl('/api/create3d');
     const createResp = await fetch(createUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -1115,7 +1115,7 @@ $('#btn360').addEventListener('click', async () => {
 
       let checkResp;
       try {
-        const checkUrl = getApiUrl(`/functions/check3d?task_id=${encodeURIComponent(taskId)}`);
+        const checkUrl = getApiUrl(`/api/check3d?task_id=${encodeURIComponent(taskId)}`);
         checkResp = await fetch(checkUrl);
       } catch (_) {
         continue;
