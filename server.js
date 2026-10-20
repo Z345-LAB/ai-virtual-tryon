@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { generateOutfit, getConfig, AppError } from './cloud-functions/_lib/wan.js';
-import { createTaskId, readTask, getDemoModelUrl } from './cloud-functions/_lib/three.js';
+import { createModelTask, getModelTask } from './cloud-functions/_lib/three.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
@@ -60,28 +60,36 @@ app.post(['/api/tryon', '/functions/tryon'], async (req, res) => {
   }
 });
 
-/* ---------- 3D（演示实现，与线上逻辑一致） ---------- */
-app.post(['/api/create3d', '/functions/create3d'], (req, res) => {
+/* ---------- 3D（Tripo 图生 3D，失败自动降级演示模型） ---------- */
+app.post(['/api/create3d', '/functions/create3d'], async (req, res) => {
   const imageUrl = String((req.body && req.body.image_url) || '').trim();
   if (!imageUrl) return res.status(400).json({ success: false, error: '缺少 image_url' });
+
+  const result = await createModelTask({ imageUrl });
+  console.log(`[3D] 任务 ${result.taskId}${result.demo ? `（降级：${result.reason}）` : ''}`);
   res.json({
     success: true,
-    task_id: createTaskId(),
-    message: '3D 任务已提交（演示实现：约 6 秒后返回演示模型）',
+    task_id: result.taskId,
+    demo: Boolean(result.demo),
+    message: result.demo
+      ? `3D 服务不可用，已切换演示模型：${result.reason}`
+      : '3D 任务已提交，正在进行图生 3D',
   });
 });
 
-app.get(['/api/check3d', '/functions/check3d'], (req, res) => {
+app.get(['/api/check3d', '/functions/check3d'], async (req, res) => {
   const taskId = req.query.task_id;
   if (!taskId) return res.status(400).json({ success: false, error: '缺少 task_id' });
 
-  const task = readTask(String(taskId));
-  if (!task.ok) return res.status(404).json({ status: 'FAILED', message: task.reason });
-
-  if (task.status === 'RUNNING') {
-    return res.json({ status: 'RUNNING', message: '模型构建中…', elapsed_ms: task.elapsedMs });
-  }
-  return res.json({ status: 'SUCCEEDED', model_url: getDemoModelUrl(), elapsed_ms: task.elapsedMs });
+  const result = await getModelTask({ taskId: String(taskId) });
+  res.json({
+    status: result.status,
+    progress: result.progress ?? null,
+    model_url: result.modelUrl || null,
+    preview_url: result.previewUrl || null,
+    demo: Boolean(result.demo),
+    message: result.message || null,
+  });
 });
 
 /* ---------- 兜底 ---------- */
