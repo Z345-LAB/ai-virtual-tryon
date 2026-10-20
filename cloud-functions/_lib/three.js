@@ -2,8 +2,9 @@ import { readEnv } from './env.js';
 
 // 国内可直连的域名；国际站用 https://api.tripo3d.ai/v2/openapi（国内会被 DNS 污染）
 const DEFAULT_HOST = 'https://api.tripo3d.com/v2/openapi';
-const DEFAULT_DEMO_MODEL = 'https://modelviewer.dev/shared-assets/models/Astronaut.glb';
-const DEMO_BUILD_MS = 6000;
+const DEFAULT_DEMO_MODEL = '/models/robot.glb';
+// 演示任务直接命中前端第一次轮询（间隔 3 秒），一键演示时不用干等
+const DEMO_BUILD_MS = 2000;
 
 export function getTripoConfig(env) {
   return {

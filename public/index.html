@@ -710,7 +710,7 @@ model-viewer.hidden{ display: none; }
 /* =========================================================
    配置与状态
 ========================================================= */
-const DEMO_MODEL_URL = 'https://modelviewer.dev/shared-assets/models/Astronaut.glb';
+const DEMO_MODEL_URL = '/models/robot.glb'; // 本地托管，464KB，不再依赖 modelviewer.dev 的 2.8MB 外链
 const TRYON_TIMEOUT_MS = 90000; // 后端走同步调用，通常 10–20 秒；云函数最长 60 秒，这里留余量
 const BACKEND_PORT = '3000';     // 与 .env 里的 PORT 保持一致
 
