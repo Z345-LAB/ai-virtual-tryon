@@ -1,3 +1,5 @@
+import { readEnv } from './env.js';
+
 const DEFAULT_HOST = 'https://dashscope.aliyuncs.com';
 // 同步调用路径（异步创建任务用的是 image-generation，两者不要混）
 const SYNC_PATH = '/api/v1/services/aigc/multimodal-generation/generation';
@@ -15,12 +17,6 @@ export class AppError extends Error {
     this.status = status;
     this.detail = detail;
   }
-}
-
-function readEnv(env, key, fallback) {
-  const fromContext = env && env[key] !== undefined ? env[key] : undefined;
-  const value = fromContext !== undefined ? fromContext : (globalThis.process?.env?.[key]);
-  return value === undefined || value === '' ? fallback : value;
 }
 
 export function getConfig(env) {
