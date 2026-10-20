@@ -1,25 +1,23 @@
 /**
- * 统一的 JSON POST 请求。
+ * 统一的 JSON 请求层。
  *
- * 为什么不用全局 fetch 直连：EdgeOne 云函数的运行时如果被裁剪成低版本 Node，
- * 全局 fetch 不存在，会直接抛 "fetch is not defined"。这里优先用 fetch，
+ * 为什么不用全局 fetch 直连：EdgeOne 云函数的运行时没有全局 fetch（线上实测报
+ * "fetch is not defined"），但 Response/Request 是有的。这里优先用 fetch，
  * 拿不到就退回 node:https，保证主流程在任何 Node 16+ 环境里都能跑。
  */
-export async function postJson(url, payload, headers = {}, timeoutMs = 30000) {
-  const body = JSON.stringify(payload);
-  const finalHeaders = { 'Content-Type': 'application/json', ...headers };
 
-  if (typeof fetch === 'function') {
-    const resp = await fetch(url, {
-      method: 'POST',
-      headers: finalHeaders,
-      body,
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-    const data = await resp.json().catch(() => null);
-    return { ok: resp.ok, status: resp.status, data };
-  }
+async function viaFetch(method, url, body, headers, timeoutMs) {
+  const resp = await fetch(url, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json', ...headers } : headers,
+    body,
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  const data = await resp.json().catch(() => null);
+  return { ok: resp.ok, status: resp.status, data };
+}
 
+async function viaHttps(method, url, body, headers, timeoutMs) {
   const { default: https } = await import('node:https');
 
   return new Promise((resolve, reject) => {
@@ -29,8 +27,11 @@ export async function postJson(url, payload, headers = {}, timeoutMs = 30000) {
         hostname: target.hostname,
         port: target.port || 443,
         path: `${target.pathname}${target.search}`,
-        method: 'POST',
-        headers: { ...finalHeaders, 'Content-Length': Buffer.byteLength(body) },
+        method,
+        headers: {
+          ...headers,
+          ...(body ? { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) } : {}),
+        },
       },
       (res) => {
         let raw = '';
@@ -60,7 +61,21 @@ export async function postJson(url, payload, headers = {}, timeoutMs = 30000) {
       reject(err);
     });
 
-    req.write(body);
+    if (body) req.write(body);
     req.end();
   });
+}
+
+export async function requestJson(method, url, payload, headers = {}, timeoutMs = 30000) {
+  const body = payload === undefined || payload === null ? null : JSON.stringify(payload);
+  const send = typeof fetch === 'function' ? viaFetch : viaHttps;
+  return send(method, url, body, headers, timeoutMs);
+}
+
+export function postJson(url, payload, headers, timeoutMs) {
+  return requestJson('POST', url, payload, headers, timeoutMs);
+}
+
+export function getJson(url, headers, timeoutMs) {
+  return requestJson('GET', url, null, headers, timeoutMs);
 }

@@ -1,7 +1,10 @@
 import { readEnv } from './env.js';
+import { postJson, getJson } from './net.js';
 
-// 国内可直连的域名；国际站用 https://api.tripo3d.ai/v2/openapi（国内会被 DNS 污染）
-const DEFAULT_HOST = 'https://api.tripo3d.com/v2/openapi';
+// Tripo v3 接口（国内站）。国际站是 https://openapi.tripo3d.ai/v3，国内被 DNS 污染。
+// v3 的图片作为公网 URL 直接传入，不需要先上传拿 token。
+const DEFAULT_HOST = 'https://openapi.tripo3d.com/v3';
+const DEFAULT_MODEL = 'v3.1-20260211';
 const DEFAULT_DEMO_MODEL = '/models/robot.glb';
 // 演示任务直接命中前端第一次轮询（间隔 3 秒），一键演示时不用干等
 const DEMO_BUILD_MS = 2000;
@@ -10,7 +13,7 @@ export function getTripoConfig(env) {
   return {
     apiKey: readEnv(env, 'TRIPO_API_KEY'),
     host: String(readEnv(env, 'TRIPO_HOST', DEFAULT_HOST)).replace(/\/+$/, ''),
-    modelVersion: readEnv(env, 'TRIPO_MODEL_VERSION'),
+    model: readEnv(env, 'TRIPO_MODEL_VERSION', DEFAULT_MODEL),
     timeoutMs: Number(readEnv(env, 'TRIPO_TIMEOUT_MS', '25000')),
   };
 }
@@ -40,26 +43,16 @@ function readDemoTask(taskId, now = Date.now()) {
   };
 }
 
-async function tripoRequest(cfg, path, init = {}) {
-  const resp = await fetch(`${cfg.host}${path}`, {
-    ...init,
-    headers: {
-      Authorization: `Bearer ${cfg.apiKey}`,
-      ...(init.headers || {}),
-    },
-    signal: AbortSignal.timeout(cfg.timeoutMs),
-  });
-  const data = await resp.json().catch(() => null);
-  return { resp, data };
-}
-
-function pickImageType(contentType, url) {
-  const type = String(contentType || '').toLowerCase();
-  if (type.includes('png')) return 'png';
-  if (type.includes('webp')) return 'webp';
-  if (type.includes('jpeg') || type.includes('jpg')) return 'jpg';
-  const match = /\.(png|jpe?g|webp)(?:\?|$)/i.exec(String(url || ''));
-  return match ? match[1].toLowerCase().replace('jpeg', 'jpg') : 'jpg';
+/** 查一次 API 账户余额（不计费），用于把失败原因说清楚 */
+export async function getBalance(env) {
+  const cfg = getTripoConfig(env);
+  if (!cfg.apiKey) return null;
+  try {
+    const { data } = await getJson(`${cfg.host}/account/balance`, { Authorization: `Bearer ${cfg.apiKey}` }, 8000);
+    return data && data.code === 0 ? Number(data?.data?.balance) : null;
+  } catch (_) {
+    return null;
+  }
 }
 
 /**
@@ -74,48 +67,32 @@ export async function createModelTask({ imageUrl, env }) {
   if (!imageUrl) return degraded('缺少图片地址');
 
   try {
-    // 1. 取图（阿里云返回的临时链接，需要我们自己转存给 Tripo）
-    const imgResp = await fetch(imageUrl, { signal: AbortSignal.timeout(20000) });
-    if (!imgResp.ok) return degraded(`取图失败 HTTP ${imgResp.status}`);
-    const buffer = await imgResp.arrayBuffer();
-    if (!buffer.byteLength) return degraded('图片内容为空');
+    const resp = await postJson(
+      `${cfg.host}/generation/image-to-model`,
+      { input: imageUrl, model: cfg.model },
+      { Authorization: `Bearer ${cfg.apiKey}` },
+      cfg.timeoutMs,
+    );
 
-    const imageType = pickImageType(imgResp.headers.get('content-type'), imageUrl);
-
-    // 2. 上传拿 image_token（Tripo 要求先上传，不能直接把外链丢给建任务接口）
-    const form = new FormData();
-    form.append('file', new Blob([buffer], { type: `image/${imageType === 'jpg' ? 'jpeg' : imageType}` }), `input.${imageType}`);
-    const upload = await tripoRequest(cfg, '/upload', { method: 'POST', body: form });
-    const fileToken = upload.data?.data?.image_token || upload.data?.data?.file_token;
-    if (!fileToken) {
-      return degraded(upload.data?.message || `上传失败（HTTP ${upload.resp.status}）`);
-    }
-
-    // 3. 创建图生 3D 任务
-    const payload = {
-      type: 'image_to_model',
-      file: { type: imageType, file_token: fileToken },
-    };
-    if (cfg.modelVersion) payload.model_version = cfg.modelVersion;
-
-    const created = await tripoRequest(cfg, '/task', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload),
-    });
-
-    const code = created.data?.code;
+    const code = resp.data?.code;
     if (code !== 0) {
-      // 常见：2010 余额不足、2002 参数错误
-      return degraded(created.data?.message || `创建任务失败（code ${code ?? created.resp.status}）`);
+      const raw = resp.data?.message || `创建任务失败（HTTP ${resp.status}）`;
+      if (code === 2010) {
+        const balance = await getBalance(env);
+        const tip = balance === null ? '' : `（当前余额 ${balance}）`;
+        return degraded(`Tripo API 额度不足${tip}，需要在 API 计费页单独充值，与 Studio 订阅不通用`);
+      }
+      return degraded(raw);
     }
 
-    const taskId = created.data?.data?.task_id;
+    const taskId = resp.data?.data?.task_id;
     if (!taskId) return degraded('Tripo 未返回 task_id');
     return { ok: true, taskId, demo: false, reason: null };
   } catch (err) {
     const timedOut = err.name === 'TimeoutError' || err.name === 'AbortError';
-    return degraded(timedOut ? 'Tripo 请求超时' : `Tripo 请求失败：${err.message}`);
+    const cause = err.cause && (err.cause.code || err.cause.message);
+    const suffix = cause ? `（${cause}）` : '';
+    return degraded(timedOut ? 'Tripo 请求超时' : `Tripo 请求失败：${err.message}${suffix}`);
   }
 }
 
@@ -140,10 +117,14 @@ export async function getModelTask({ taskId, env }) {
   if (!cfg.apiKey) return { status: 'FAILED', message: '未配置 TRIPO_API_KEY' };
 
   try {
-    const { resp, data } = await tripoRequest(cfg, `/task/${encodeURIComponent(id)}`);
+    const { status: httpStatus, data } = await getJson(
+      `${cfg.host}/tasks/${encodeURIComponent(id)}`,
+      { Authorization: `Bearer ${cfg.apiKey}` },
+      cfg.timeoutMs,
+    );
 
     if (data?.code !== 0) {
-      return { status: 'FAILED', message: data?.message || `查询失败（HTTP ${resp.status}）` };
+      return { status: 'FAILED', message: data?.message || `查询失败（HTTP ${httpStatus}）` };
     }
 
     const d = data.data || {};
@@ -154,18 +135,16 @@ export async function getModelTask({ taskId, env }) {
       return {
         status: 'SUCCEEDED',
         progress: 100,
-        // pbr_model 带贴图，优先；model 是基础模型
-        modelUrl: output.pbr_model || output.model || null,
-        previewUrl: output.rendered_image || null,
+        // v3 输出用 model_url；pbr_model / model 兼容旧命名
+        modelUrl: output.model_url || output.pbr_model || output.model || null,
+        previewUrl: output.rendered_image || output.preview_url || null,
       };
     }
-    if (status === 'queued' || status === 'running') {
-      return { status: 'RUNNING', progress: Number(d.progress) || 0, message: '3D 模型生成中…' };
+    if (['failed', 'cancelled', 'expired', 'banned'].includes(status)) {
+      const reason = d.error_message || d.error || d.message || status;
+      return { status: 'FAILED', message: `3D 任务失败：${reason}` };
     }
-    if (['failed', 'banned', 'expired', 'cancelled', 'unknown'].includes(status)) {
-      const extra = d.error_code ? `（error_code ${d.error_code}）` : '';
-      return { status: 'FAILED', message: `3D 任务${status}${extra}` };
-    }
+    // queued / running
     return { status: 'RUNNING', progress: Number(d.progress) || 0, message: '3D 模型生成中…' };
   } catch (err) {
     const timedOut = err.name === 'TimeoutError' || err.name === 'AbortError';

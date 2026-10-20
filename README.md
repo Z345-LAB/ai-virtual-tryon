@@ -13,7 +13,7 @@
 | 后端（线上） | EdgeOne Pages Cloud Functions，Node.js 20 |
 | 后端（本地） | Node.js + Express（与线上共用同一份核心逻辑） |
 | 图像生成 | 阿里云百炼 · 通义万相 `wan2.7-image-pro`，同步调用 |
-| 3D 生成 | Tripo3D `image_to_model`（图生 3D），异步任务 + 轮询 |
+| 3D 生成 | Tripo3D v3 `generation/image-to-model`（图生 3D），直传图片 URL，异步任务 + 轮询 |
 
 ## 目录结构
 
@@ -85,9 +85,9 @@ npm start
 | `WAN_MODEL` | 否 | 默认 `wan2.7-image-pro`，可换 `wan2.7-image` |
 | `WAN_SIZE` | 否 | 默认 `2K`；有图片输入时最高就是 2K |
 | `WAN_TIMEOUT_MS` | 否 | 单次调用超时，默认 55000 |
-| `TRIPO_API_KEY` | 否 | Tripo 的 Key（`tsk_` 开头）。不填则 3D 走演示模型 |
-| `TRIPO_HOST` | 否 | 默认 `https://api.tripo3d.com/v2/openapi`（国内可直连）；国际站 `https://api.tripo3d.ai/v2/openapi` 在国内会被 DNS 污染 |
-| `TRIPO_MODEL_VERSION` | 否 | 固定模型版本，留空用最新 |
+| `TRIPO_API_KEY` | 否 | Tripo 的 Key（`tsk_` 开头）。不填则 3D 走演示模型。注意 `tcli_` 开头的是 Client ID，不能用于认证 |
+| `TRIPO_HOST` | 否 | 默认 `https://openapi.tripo3d.com/v3`（国内可直连）；国际站 `https://openapi.tripo3d.ai/v3` 在国内会被 DNS 污染 |
+| `TRIPO_MODEL_VERSION` | 否 | 默认 `v3.1-20260211`，可选 `P1-20260311` / `P2-20260801` / `v2.5-20250123` / `v3.0-20250812` |
 | `TRIPO_TIMEOUT_MS` | 否 | Tripo 单次请求超时，默认 25000 |
 | `PORT` | 否 | 本地服务端口，默认 `3000` |
 | `DEMO_MODEL_URL` | 否 | Tripo 不可用时的演示模型地址 |
@@ -110,7 +110,7 @@ npm start
 - [x] 结果图淡入展示、AI 点评打字机效果
 - [x] 一键体验（内置示例图，无需上传）
 - [x] 前后端同域部署到 EdgeOne Pages，无服务器形态
-- [x] 接入 Tripo `image_to_model` 图生 3D：换装结果图 → 上传 → 建任务 → 轮询进度 → 加载 glb
+- [x] 接入 Tripo v3 图生 3D：换装结果图 → 建任务（直传 URL，无需上传）→ 轮询进度 → 加载 glb
 - [x] 3D 全链路降级：没配 Key、余额不足、网络不通时自动回退演示模型并说明原因
 - [ ] 3D 模型的持久化保存（Tripo 输出链接只有 5 分钟有效期）
 - [ ] 历史记录与作品保存
@@ -123,5 +123,5 @@ npm start
 - 有一张图片输入时输出上限为 2K，4K 仅文生图场景支持。
 - EdgeOne Pages 云函数的请求/响应体上限是 6MB，本项目只回传图片 URL，远低于限制。
 - Tripo 的模型下载链接**只有 5 分钟有效期**，页面会立刻加载；刷新后需要重新生成，长期保存请下载到自己的存储。
-- Tripo 账户按 credits 计费，图生 3D 约 30–50 credits/次；余额为 0 时会自动降级为演示模型，状态栏会显示具体原因。
+- Tripo API 是**独立计费**的另一条业务线（100 credits = $1，图生 3D 约 20–30 credits/次），**Studio 网页订阅的积分不能用于 API**。API 余额为 0 时自动降级为演示模型，状态栏会显示余额。
 - Tripo 模型链接如果没带 CORS 头，`model-viewer` 拉不到 glb，此时会自动改为显示模型预览图。
