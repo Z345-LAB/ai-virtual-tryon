@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>360° AI 智能试衣间 · NEON FITTING ROOM</title>
+<title>次元造物 - 虚拟角色一键换装与 3D 化</title>
 <script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
 <style>
 /* ================= 基础 & 变量 ================= */
@@ -81,13 +81,13 @@ body{
 @keyframes floatY{ 0%,100%{ transform: translateY(0); } 50%{ transform: translateY(-4px); } }
 
 .brand h1{
-  margin: 0; font-size: 19px; font-weight: 700; letter-spacing: .06em;
+  margin: 0; font-size: 20px; font-weight: 700; letter-spacing: .08em;
   background: linear-gradient(90deg, #ffffff, var(--cyan) 45%, var(--magenta));
   -webkit-background-clip: text; background-clip: text; color: transparent;
   filter: drop-shadow(0 0 12px rgba(0,234,255,.35));
 }
 .brand p{
-  margin: 3px 0 0; font-size: 10px; letter-spacing: .28em; color: var(--muted);
+  margin: 3px 0 0; font-size: 10px; letter-spacing: .24em; color: var(--muted);
   text-transform: uppercase;
 }
 
@@ -109,7 +109,7 @@ main{
   position: relative; z-index: 2;
   flex: 1; min-height: 0;
   display: grid;
-  grid-template-columns: 380px minmax(0, 1fr);
+  grid-template-columns: 400px minmax(0, 1fr);
   gap: 18px;
 }
 
@@ -155,11 +155,51 @@ main{
 .console::-webkit-scrollbar{ width: 6px; }
 .console::-webkit-scrollbar-thumb{ background: rgba(0,234,255,.25); border-radius: 99px; }
 
-.upload-row{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+/* ---- 预设按钮 ---- */
+.preset-row{ display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
 
+.preset-btn{
+  position: relative; overflow: hidden;
+  padding: 13px 10px;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+  border-radius: 12px;
+  font-family: inherit; font-size: 12.5px; font-weight: 600;
+  letter-spacing: .06em; color: #dff7ff;
+  cursor: pointer;
+  border: 1px solid rgba(0,234,255,.4);
+  background: linear-gradient(120deg, rgba(0,234,255,.12), rgba(138,92,255,.12));
+  box-shadow: inset 0 0 20px rgba(0,234,255,.06);
+  transition: transform .22s, box-shadow .3s, border-color .3s;
+}
+.preset-btn:hover{
+  transform: translateY(-2px);
+  border-color: var(--cyan);
+  box-shadow: 0 0 24px rgba(0,234,255,.45), inset 0 0 24px rgba(0,234,255,.14);
+}
+.preset-btn:active{ transform: translateY(0) scale(.99); }
+.preset-btn:disabled{ opacity: .55; cursor: not-allowed; transform: none; }
+
+.preset-btn.gufeng{
+  border-color: rgba(255,53,208,.4);
+  background: linear-gradient(120deg, rgba(255,53,208,.14), rgba(138,92,255,.12));
+  box-shadow: inset 0 0 20px rgba(255,53,208,.06);
+}
+.preset-btn.gufeng:hover{
+  border-color: var(--magenta);
+  box-shadow: 0 0 24px rgba(255,53,208,.45), inset 0 0 24px rgba(255,53,208,.14);
+}
+
+.preset-note{
+  margin: -4px 2px 0;
+  font-size: 10.5px; line-height: 1.6; letter-spacing: .04em;
+  color: var(--muted); text-align: center;
+}
+
+/* ---- 上传框 ---- */
 .upload-box{
   position: relative;
-  aspect-ratio: 4 / 5;
+  width: 100%;
+  aspect-ratio: 5 / 4;
   border-radius: 15px;
   border: 1px dashed rgba(0,234,255,.35);
   background: rgba(0,234,255,.035);
@@ -182,10 +222,10 @@ main{
   padding: 10px; text-align: center; pointer-events: none;
 }
 .upload-inner svg{
-  width: 26px; height: 26px; stroke: var(--cyan);
+  width: 28px; height: 28px; stroke: var(--cyan);
   filter: drop-shadow(0 0 8px rgba(0,234,255,.75));
 }
-.u-title{ font-size: 12px; letter-spacing: .1em; color: #d6f4ff; }
+.u-title{ font-size: 12.5px; letter-spacing: .1em; color: #d6f4ff; }
 .u-sub{ font-size: 8.5px; letter-spacing: .22em; color: var(--muted); }
 
 .preview{
@@ -205,9 +245,37 @@ main{
   box-shadow: 0 0 14px rgba(0,234,255,.8);
 }
 
+/* ---- 换装描述 ---- */
+.desc-block{ display: flex; flex-direction: column; gap: 8px; }
+.desc-label{
+  display: flex; align-items: baseline; gap: 8px;
+  font-size: 12px; font-weight: 600; letter-spacing: .14em; color: #d6f4ff;
+}
+.desc-sub{ font-size: 8.5px; letter-spacing: .22em; color: var(--muted); font-weight: 400; }
+.desc-input{
+  width: 100%;
+  min-height: 80px;
+  padding: 12px 14px;
+  resize: vertical;
+  border-radius: 12px;
+  border: 1px solid rgba(0,234,255,.28);
+  background: rgba(0,234,255,.04);
+  color: #eafcff;
+  font-family: inherit;
+  font-size: 13px; line-height: 1.65;
+  outline: none;
+  transition: .25s;
+}
+.desc-input::placeholder{ color: rgba(190,222,255,.35); }
+.desc-input:focus{
+  border-color: var(--cyan);
+  background: rgba(0,234,255,.07);
+  box-shadow: 0 0 0 3px rgba(0,234,255,.12), 0 0 24px rgba(0,234,255,.25);
+}
+
 .hint{
   font-size: 10.5px; letter-spacing: .06em; color: var(--muted);
-  text-align: center; margin-top: -4px;
+  text-align: center; margin-top: -2px;
 }
 
 /* ================= 按钮 ================= */
@@ -242,7 +310,11 @@ main{
     inset 0 0 28px rgba(0,234,255,.25);
 }
 .btn:active{ transform: translateY(0) scale(.99); }
-.btn:disabled{ opacity: .55; cursor: not-allowed; transform: none; }
+.btn:disabled{
+  opacity: .55; cursor: not-allowed; transform: none;
+  box-shadow: 0 6px 18px rgba(0,0,0,.35);
+}
+.btn:disabled::before{ display: none; }
 
 .btn-primary{ animation: glowCyan 2.8s ease-in-out infinite; }
 @keyframes glowCyan{
@@ -250,18 +322,25 @@ main{
   50%    { box-shadow: 0 10px 26px rgba(0,0,0,.45), 0 0 34px rgba(0,234,255,.75), 0 0 70px rgba(0,234,255,.28), inset 0 0 26px rgba(0,234,255,.24); }
 }
 
+/* ============ 3D 按钮：始终可见，初始置灰 ============ */
 .btn-secondary{
   border-color: rgba(255,53,208,.5);
   background: linear-gradient(120deg, rgba(255,53,208,.2), rgba(138,92,255,.2));
   text-shadow: 0 0 14px rgba(255,53,208,.6);
-  opacity: 0; transform: translateY(10px);
-  transition: opacity .45s ease, transform .45s ease, box-shadow .3s, border-color .3s;
 }
-.btn-secondary.show{
-  opacity: 1; transform: translateY(0);
+.btn-secondary:disabled{
+  opacity: .35;
+  border-color: rgba(255,53,208,.2);
+  background: linear-gradient(120deg, rgba(255,53,208,.06), rgba(138,92,255,.06));
+  text-shadow: none;
+  box-shadow: none;
+  animation: none;
+}
+.btn-secondary:not(:disabled){
   animation: glowMagenta 2.4s ease-in-out infinite;
 }
-.btn-secondary.show:hover{
+.btn-secondary:not(:disabled):hover{
+  transform: translateY(-2px);
   border-color: var(--magenta);
   box-shadow: 0 0 30px rgba(255,53,208,.6), 0 0 76px rgba(255,53,208,.25), inset 0 0 26px rgba(255,53,208,.28);
 }
@@ -309,6 +388,7 @@ main{
   transition: opacity .45s ease, transform .45s ease;
 }
 .placeholder.fade-out{ opacity: 0; transform: scale(1.03); pointer-events: none; }
+.placeholder.hidden{ display: none; }
 .placeholder img{
   width: 100%; height: 100%; object-fit: cover; display: block;
   filter: saturate(.85) contrast(1.06);
@@ -338,7 +418,7 @@ main{
   backdrop-filter: blur(8px);
 }
 
-/* ============== AI 试穿结果图 ============== */
+/* ============== AI 换装结果图 ============== */
 .ai-result{
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: contain;
@@ -385,6 +465,11 @@ model-viewer.hidden{ display: none; }
   background: rgba(4,12,24,.75);
   box-shadow: 0 0 30px rgba(0,234,255,.35);
   backdrop-filter: blur(10px);
+}
+.proc-elapsed{
+  margin-left: 4px;
+  font-size: 11px; letter-spacing: .1em; color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
 
 .spinner{
@@ -471,15 +556,15 @@ model-viewer.hidden{ display: none; }
 <!-- ============ 顶部 HUD ============ -->
 <header class="hud">
   <div class="brand">
-    <div class="brand-icon">◈</div>
+    <div class="brand-icon">✦</div>
     <div>
-      <h1>360° AI 智能试衣间</h1>
-      <p>AI Virtual Fitting Room · v2.4</p>
+      <h1>次元造物</h1>
+      <p>Virtual Character Dressing · 3D · v3.0</p>
     </div>
   </div>
   <div class="hud-tags">
     <span class="tag online">● SYSTEM ONLINE</span>
-    <span class="tag">GPU · NEURAL RENDER</span>
+    <span class="tag">WAN 2.7 · PRO</span>
   </div>
 </header>
 
@@ -494,42 +579,48 @@ model-viewer.hidden{ display: none; }
       <span class="head-sub">CONSOLE</span>
     </div>
 
-    <div class="upload-row">
-      <!-- 人像上传 -->
-      <div class="upload-box" id="boxPerson">
-        <input type="file" accept="image/*" id="filePerson" hidden>
-        <div class="upload-inner">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="12" cy="8" r="4"></circle>
-            <path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"></path>
-          </svg>
-          <span class="u-title">上传人像</span>
-          <span class="u-sub">PORTRAIT</span>
-        </div>
-        <img class="preview" id="prevPerson" alt="人像预览">
-      </div>
+    <!-- 预设体验 -->
+    <div class="preset-row">
+      <button class="preset-btn" id="presetCyber">⚡ 一键体验赛博风</button>
+      <button class="preset-btn gufeng" id="presetGufeng">🏮 一键体验古风</button>
+    </div>
+    <p class="preset-note">注：一键体验使用随机 AI 角色及设定快速演示，无需上传照片。</p>
 
-      <!-- 衣服上传 -->
-      <div class="upload-box" id="boxGarment">
-        <input type="file" accept="image/*" id="fileGarment" hidden>
-        <div class="upload-inner">
-          <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M8 3l4 2 4-2 4 4-3 3v11H7V10L4 7l4-4z"></path>
-          </svg>
-          <span class="u-title">上传衣服</span>
-          <span class="u-sub">GARMENT</span>
-        </div>
-        <img class="preview" id="prevGarment" alt="服装预览">
+    <!-- 角色底图上传 -->
+    <div class="upload-box" id="boxPerson">
+      <input type="file" accept="image/*" id="filePerson" hidden>
+      <div class="upload-inner">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="8" r="4"></circle>
+          <path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"></path>
+        </svg>
+        <span class="u-title">上传角色底图</span>
+        <span class="u-sub">CHARACTER BASE IMAGE</span>
       </div>
+      <img class="preview" id="prevPerson" alt="角色底图预览">
     </div>
 
-    <div class="hint">支持 JPG / PNG · 建议正面全身照与白底服装图</div>
+    <!-- 换装描述 -->
+    <div class="desc-block">
+      <label class="desc-label" for="promptInput">
+        <span>换装描述</span>
+        <span class="desc-sub">OUTFIT PROMPT</span>
+      </label>
+      <textarea
+        id="promptInput"
+        class="desc-input"
+        rows="3"
+        placeholder="例如：穿着赛博朋克机甲服">穿着赛博朋克机甲服</textarea>
+    </div>
+
+    <div class="hint">支持 JPG / PNG · 建议上传清晰、单人的二次元角色立绘</div>
 
     <button class="btn btn-primary" id="btnTry">
-      <span class="btn-text">开始试穿</span>
+      <span class="btn-text">开始换装</span>
     </button>
 
-    <button class="btn btn-secondary hidden" id="btn360">
+    <!-- 3D 按钮：始终可见，初始置灰 -->
+    <button class="btn btn-secondary" id="btn360" disabled>
       <span class="btn-text">生成 360° 3D 展示</span>
     </button>
 
@@ -545,28 +636,28 @@ model-viewer.hidden{ display: none; }
       <span class="dot magenta"></span>
       <h2>展示区</h2>
       <span class="head-sub">HOLO STAGE</span>
-      <span class="badge" id="stageBadge">DEMO</span>
+      <span class="badge" id="stageBadge">READY</span>
     </div>
 
     <div class="viewer" id="viewer">
 
       <!-- 默认假图 -->
       <div class="placeholder" id="placeholder">
-        <img src="https://picsum.photos/seed/cyberfittingroom/900/1100" alt="示例展示图">
+        <img src="https://picsum.photos/seed/animecharacter/900/1100" alt="示例展示图">
         <div class="ph-overlay"></div>
         <div class="scanline"></div>
         <div class="ph-caption">DEMO PREVIEW · 示例图</div>
       </div>
 
-      <!-- AI 试穿结果图 -->
-      <img id="aiResult" class="ai-result hidden" alt="AI 试穿结果">
+      <!-- AI 换装结果图 -->
+      <img id="aiResult" class="ai-result hidden" alt="AI 换装结果">
 
       <!-- 3D 模型容器（默认隐藏） -->
       <model-viewer
         id="mv"
         class="hidden"
         src="https://modelviewer.dev/shared-assets/models/Astronaut.glb"
-        alt="360° 3D 试穿模型"
+        alt="360° 3D 角色展示"
         auto-rotate
         auto-rotate-delay="0"
         rotation-per-second="32deg"
@@ -589,6 +680,7 @@ model-viewer.hidden{ display: none; }
         <div class="proc-label">
           <span class="spinner"></span>
           <span id="procText">AI 解析中…</span>
+          <span class="proc-elapsed" id="procElapsed"></span>
         </div>
       </div>
 
@@ -602,7 +694,7 @@ model-viewer.hidden{ display: none; }
         <span class="ai-sub">AI REVIEW</span>
       </div>
       <div class="ai-body" id="aiBody">
-        <p class="ai-empty">上传人像与服装后，点击「开始试穿」即可获取 AI 智能点评。</p>
+        <p class="ai-empty">上传角色底图并填写换装描述后，点击「开始换装」即可生成 AI 换装效果。</p>
       </div>
     </div>
   </section>
@@ -611,14 +703,33 @@ model-viewer.hidden{ display: none; }
 
 <script>
 /* =========================================================
+   ⚠️ 预设角色底图 Base64（JPEG Data URL）
+   - 已经把你的长串 Base64 接在 data:image/jpeg;base64, 后面
+   - 两个预设按钮默认共用这张图
+========================================================= */
+const PRESET_CHARACTER_BASE64 =
+  'data:image/jpeg;base64,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';
+
+const PRESET_IMG_CYBER  = PRESET_CHARACTER_BASE64;
+const PRESET_IMG_GUFENG = PRESET_CHARACTER_BASE64;
+
+/* 3D 后端不可用时的演示模型 */
+const DEMO_MODEL_URL = 'https://modelviewer.dev/shared-assets/models/Astronaut.glb';
+
+/* 换装请求超时（秒）—— 略大于后端 maxDuration: 120 */
+const TRYON_TIMEOUT_MS = 130000;
+
+/* =========================================================
    状态
 ========================================================= */
 const state = {
-  person: null,   // 上传的 File 对象
-  garment: null,
+  personFile: null,
+  personDataUrl: null,
   busy: false,
   tried: false,
   threeD: false,
+  threeDLoading: false,
+  resultImageUrl: null,
   typingToken: 0
 };
 
@@ -627,66 +738,52 @@ const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const setStatus = (text) => { $('#status').textContent = text; };
 
 /* =========================================================
-   图片上传
+   角色底图上传
 ========================================================= */
-function bindUpload({ boxSel, inputSel, previewSel, key, name }) {
-  const box = $(boxSel);
-  const input = $(inputSel);
-  const preview = $(previewSel);
+const boxPerson = $('#boxPerson');
+const inputPerson = $('#filePerson');
+const prevPerson = $('#prevPerson');
 
-  box.addEventListener('click', () => input.click());
+boxPerson.addEventListener('click', () => inputPerson.click());
+inputPerson.addEventListener('change', () => {
+  const file = inputPerson.files && inputPerson.files[0];
+  if (file) loadPersonFile(file);
+});
 
-  input.addEventListener('change', () => {
-    const file = input.files && input.files[0];
-    if (file) load(file);
-  });
+['dragenter', 'dragover'].forEach((ev) =>
+  boxPerson.addEventListener(ev, (e) => {
+    e.preventDefault();
+    boxPerson.classList.add('dragging');
+  })
+);
+['dragleave', 'drop'].forEach((ev) =>
+  boxPerson.addEventListener(ev, (e) => {
+    e.preventDefault();
+    boxPerson.classList.remove('dragging');
+  })
+);
+boxPerson.addEventListener('drop', (e) => {
+  const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadPersonFile(file);
+});
 
-  ['dragenter', 'dragover'].forEach((ev) =>
-    box.addEventListener(ev, (e) => {
-      e.preventDefault();
-      box.classList.add('dragging');
-    })
-  );
-
-  ['dragleave', 'drop'].forEach((ev) =>
-    box.addEventListener(ev, (e) => {
-      e.preventDefault();
-      box.classList.remove('dragging');
-    })
-  );
-
-  box.addEventListener('drop', (e) => {
-    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
-    if (file && file.type.startsWith('image/')) load(file);
-  });
-
-  function load(file) {
-    preview.src = URL.createObjectURL(file);
-    box.classList.add('has-image');
-    state[key] = file;
-    setStatus(`${name}已载入 · ${Math.max(1, Math.round(file.size / 1024))} KB`);
-    checkReady();
-  }
+function loadPersonFile(file) {
+  state.personFile = file;
+  state.personDataUrl = null;
+  prevPerson.src = URL.createObjectURL(file);
+  boxPerson.classList.add('has-image');
+  setStatus(`角色底图已载入 · ${Math.max(1, Math.round(file.size / 1024))} KB`);
 }
 
-function checkReady() {
-  if (state.person && state.garment) {
-    setStatus('素材已就绪 · 点击「开始试穿」启动 AI 融合');
-  }
+function setPersonFromDataUrl(dataUrl) {
+  state.personFile = null;
+  state.personDataUrl = dataUrl;
+  prevPerson.src = dataUrl;
+  boxPerson.classList.add('has-image');
 }
-
-bindUpload({
-  boxSel: '#boxPerson', inputSel: '#filePerson',
-  previewSel: '#prevPerson', key: 'person', name: '人像'
-});
-bindUpload({
-  boxSel: '#boxGarment', inputSel: '#fileGarment',
-  previewSel: '#prevGarment', key: 'garment', name: '服装'
-});
 
 /* =========================================================
    工具：压缩图片 → Data URL（JPEG）
-   目的：控制请求体积，避免超过 Vercel 4.5MB 请求体限制
 ========================================================= */
 function compressImage(file, maxDim = 1024, quality = 0.85) {
   return new Promise((resolve, reject) => {
@@ -717,14 +814,25 @@ function compressImage(file, maxDim = 1024, quality = 0.85) {
   });
 }
 
+async function getPersonDataUrl() {
+  if (state.personDataUrl) return state.personDataUrl;
+  if (state.personFile) {
+    const dataUrl = await compressImage(state.personFile);
+    state.personDataUrl = dataUrl;
+    return dataUrl;
+  }
+  return null;
+}
+
 /* =========================================================
-   工具：处理阶段文案循环
+   处理阶段文案循环
 ========================================================= */
 const STAGES = [
-  '解析人像骨骼与体型数据…',
-  '提取服装版型与布料材质…',
-  'AI 布料物理模拟运算…',
-  '渲染光影、褶皱与边缘细节…'
+  '解析角色面部与体型特征…',
+  '理解换装描述中的服饰设定…',
+  'AI 重绘服装与材质细节…',
+  '渲染光影与二次元线条…',
+  '预计需要 1–2 分钟，请稍候…'
 ];
 
 function startStageLoop() {
@@ -737,11 +845,21 @@ function startStageLoop() {
     i++;
   };
   tick();
-  return setInterval(tick, 1500);
+  return setInterval(tick, 2600);
+}
+
+function startElapsedTimer() {
+  const el = $('#procElapsed');
+  const start = Date.now();
+  el.textContent = '0s';
+  return setInterval(() => {
+    const s = Math.floor((Date.now() - start) / 1000);
+    el.textContent = s + 's';
+  }, 1000);
 }
 
 /* =========================================================
-   工具：把 AI 结果图展示到右侧
+   展示换装结果
 ========================================================= */
 function showResult(imageUrl) {
   const placeholder = $('#placeholder');
@@ -757,59 +875,61 @@ function showResult(imageUrl) {
 
   aiResult.classList.remove('hidden');
   aiResult.classList.remove('show');
-  // 强制 reflow，让 transition 生效
   void aiResult.offsetWidth;
 
   aiResult.onload = () => aiResult.classList.add('show');
   aiResult.src = imageUrl;
-  // 兜底：如果 onload 迟迟不触发，也强制显示
   setTimeout(() => aiResult.classList.add('show'), 1500);
 }
 
 /* =========================================================
-   开始试穿：真实调用 /api/tryon
+   换装主流程
 ========================================================= */
-$('#btnTry').addEventListener('click', async () => {
+async function doTryOn() {
   if (state.busy) return;
-
-  if (!state.person || !state.garment) {
-    setStatus('请先上传人像和服装两张图片');
-    return;
-  }
 
   const btn = $('#btnTry');
   const btnText = btn.querySelector('.btn-text');
   const processing = $('#processing');
   const badge = $('#stageBadge');
 
+  if (!state.personFile && !state.personDataUrl) {
+    setStatus('请先上传角色底图，或点击上方一键体验');
+    return;
+  }
+  const promptText = ($('#promptInput').value || '').trim();
+  if (!promptText) {
+    setStatus('请先填写换装描述');
+    return;
+  }
+
   state.busy = true;
   btn.disabled = true;
-  btnText.textContent = 'AI 融合中…';
+  btnText.textContent = 'AI 换装中…';
   badge.textContent = 'RENDERING';
   badge.classList.add('live');
   processing.classList.add('active');
 
   const stageTimer = startStageLoop();
+  const elapsedTimer = startElapsedTimer();
+
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), TRYON_TIMEOUT_MS);
 
   try {
-    // 1) 本地图片压缩成 base64（阿里云 AI 试衣支持 base64 输入）
-    const [personData, garmentData] = await Promise.all([
-      compressImage(state.person),
-      compressImage(state.garment)
-    ]);
+    const personData = await getPersonDataUrl();
+    if (!personData) throw new Error('角色底图读取失败');
 
-    // 2) 调用后端代理
     const resp = await fetch('/api/tryon', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        person_image_url: personData,
-        garment_image_url: garmentData,
-        garment_type: 'top' // top | bottom | dress
-      })
+        image_base64: personData,
+        prompt: promptText
+      }),
+      signal: controller.signal
     });
 
-    // 3) 解析结果（后端可能返回非 JSON，比如超时页）
     let data = null;
     try { data = await resp.json(); } catch (_) { /* ignore */ }
 
@@ -818,98 +938,217 @@ $('#btnTry').addEventListener('click', async () => {
       throw new Error(msg);
     }
 
-    // 4) 展示真实结果图
     showResult(data.image_url);
 
     state.tried = true;
+    state.resultImageUrl = data.image_url;
+    state.threeD = false;
+
     badge.textContent = 'AI RESULT';
     badge.classList.add('live');
-    setStatus('试穿完成 · AI 结果已生成');
+    setStatus('换装完成 · 可点击「生成 360° 3D 展示」');
     revealThreeDButton();
-    renderAIComment();
+    renderAIComment(promptText);
   } catch (err) {
     console.error('[tryon] failed:', err);
-    setStatus('试穿失败：' + err.message);
+    if (err.name === 'AbortError') {
+      setStatus('换装超时（已等待约 130 秒），请稍后重试');
+    } else {
+      setStatus('换装失败：' + err.message);
+    }
     badge.textContent = 'ERROR';
   } finally {
+    clearTimeout(timeoutId);
     clearInterval(stageTimer);
+    clearInterval(elapsedTimer);
+    $('#procElapsed').textContent = '';
     processing.classList.remove('active');
     btn.disabled = false;
-    btnText.textContent = state.tried ? '重新试穿' : '开始试穿';
+    btnText.textContent = state.tried ? '重新换装' : '开始换装';
     state.busy = false;
   }
-});
+}
+
+$('#btnTry').addEventListener('click', () => doTryOn());
 
 /* =========================================================
-   显示「生成 360° 3D 展示」按钮
+   预设按钮
+========================================================= */
+function isPresetValid(dataUrl) {
+  return (
+    typeof dataUrl === 'string' &&
+    dataUrl.startsWith('data:image') &&
+    dataUrl.length > 2000
+  );
+}
+
+async function runPreset(kind) {
+  if (state.busy) return;
+
+  const cfg = kind === 'cyber'
+    ? { img: PRESET_IMG_CYBER,  prompt: '穿着赛博朋克机甲服，霓虹光带与金属质感' }
+    : { img: PRESET_IMG_GUFENG, prompt: '穿着飘逸的古风汉服，发髻与流苏点缀' };
+
+  if (!isPresetValid(cfg.img)) {
+    setStatus('⚠ 未配置预设角色底图，请打开 JS 顶部的 PRESET_CHARACTER_BASE64 粘贴 Base64');
+    return;
+  }
+
+  setPersonFromDataUrl(cfg.img);
+  $('#promptInput').value = cfg.prompt;
+
+  await doTryOn();
+}
+
+$('#presetCyber').addEventListener('click', () => runPreset('cyber'));
+$('#presetGufeng').addEventListener('click', () => runPreset('gufeng'));
+
+/* =========================================================
+   启用 3D 按钮（换装成功后调用）
 ========================================================= */
 function revealThreeDButton() {
   const btn = $('#btn360');
-  if (btn.classList.contains('show')) return;
-  btn.classList.remove('hidden');
-  requestAnimationFrame(() => btn.classList.add('show'));
+  btn.disabled = false;
+  btn.querySelector('.btn-text').textContent = '生成 360° 3D 展示';
 }
 
 /* =========================================================
-   生成 360° 3D 展示（演示数据，可保留）
+   3D 生成流程
 ========================================================= */
-$('#btn360').addEventListener('click', () => {
-  if (state.threeD) return;
-  state.threeD = true;
+$('#btn360').addEventListener('click', async () => {
+  if (state.threeDLoading) return;
+  state.threeDLoading = true;
 
-  const placeholder = $('#placeholder');
+  const btn = $('#btn360');
+  const btnText = btn.querySelector('.btn-text');
+  const badge = $('#stageBadge');
+
+  btn.disabled = true;
+  btnText.textContent = '3D 生成中…';
+  badge.textContent = '3D BUILDING';
+  badge.classList.add('live');
+  setStatus('正在提交 3D 生成任务…');
+
+  try {
+    const createResp = await fetch('/api/create3d', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image_url: state.resultImageUrl })
+    });
+    if (!createResp.ok) throw new Error('create3d unavailable');
+
+    const createData = await createResp.json();
+    const taskId =
+      createData.task_id ||
+      (createData.output && createData.output.task_id);
+
+    if (!taskId) throw new Error('no task_id');
+
+    const MAX_POLL = 40;
+    const POLL_GAP = 3000;
+    let modelUrl = null;
+
+    for (let i = 0; i < MAX_POLL; i++) {
+      await wait(POLL_GAP);
+      setStatus(`3D 构建中… 已等待 ${(i + 1) * 3} 秒`);
+
+      let checkResp;
+      try {
+        checkResp = await fetch(`/api/check3d?task_id=${encodeURIComponent(taskId)}`);
+      } catch (_) {
+        continue;
+      }
+      if (!checkResp.ok) continue;
+
+      const checkData = await checkResp.json();
+      const status =
+        checkData.status ||
+        (checkData.output && checkData.output.task_status);
+
+      if (status === 'SUCCEEDED' || status === 'success' || status === 'SUCCESS') {
+        modelUrl =
+          checkData.model_url ||
+          (checkData.output && checkData.output.model_url);
+        if (!modelUrl) throw new Error('no model_url');
+        break;
+      }
+      if (status === 'FAILED' || status === 'failed') {
+        throw new Error('3D 任务失败');
+      }
+    }
+
+    if (!modelUrl) throw new Error('3D 任务超时');
+
+    state.threeD = true;
+    loadModelIntoViewer(modelUrl);
+    setStatus('3D 模型加载中…');
+  } catch (err) {
+    console.warn('[3d] fallback to demo model:', err);
+    state.threeD = true;
+    loadModelIntoViewer(DEMO_MODEL_URL);
+    setStatus('3D 后端暂不可用 · 已加载演示模型');
+  } finally {
+    state.threeDLoading = false;
+    btn.disabled = false;
+    btnText.textContent = state.threeD ? '360° 展示已开启' : '生成 360° 3D 展示';
+  }
+});
+
+function loadModelIntoViewer(url) {
   const mv = $('#mv');
   const mvLoading = $('#mvLoading');
+  const placeholder = $('#placeholder');
   const aiResult = $('#aiResult');
-  const btn = $('#btn360');
+  const badge = $('#stageBadge');
 
   placeholder.classList.add('fade-out');
   setTimeout(() => placeholder.classList.add('hidden'), 460);
   aiResult.classList.add('hidden');
 
-  mv.classList.remove('hidden');
   mvLoading.classList.remove('hidden');
+  mv.classList.add('hidden');
+  badge.textContent = '360° LIVE';
+  badge.classList.add('live');
 
-  $('#stageBadge').textContent = '360° LIVE';
-  setStatus('3D 模型加载中…');
-  btn.querySelector('.btn-text').textContent = '360° 展示已开启';
-  btn.disabled = true;
-
-  const onLoaded = () => {
+  const reveal = () => {
+    mv.classList.remove('hidden');
     mvLoading.classList.add('hidden');
     setStatus('360° 展示已就绪 · 拖拽旋转 / 双指缩放');
   };
-  mv.addEventListener('load', onLoaded, { once: true });
 
-  setTimeout(() => {
-    if (!mvLoading.classList.contains('hidden')) {
-      mvLoading.classList.add('hidden');
-      setStatus('360° 展示已就绪 · 拖拽旋转 / 双指缩放');
-    }
-  }, 6000);
-
+  mv.addEventListener('load', reveal, { once: true });
   mv.addEventListener('error', () => {
     mvLoading.classList.add('hidden');
     setStatus('3D 模型加载失败，请检查网络后重试');
   }, { once: true });
-});
+
+  mv.src = url;
+
+  setTimeout(() => {
+    if (!mvLoading.classList.contains('hidden')) reveal();
+  }, 15000);
+}
 
 /* =========================================================
-   AI 点评（打字机效果，演示文案，可后续接 LLM）
+   AI 点评（打字机效果）
 ========================================================= */
-const COMMENTS = [
-  { tag: '风格', text: '赛博机能风，冷色光晕强化了肩线与整体轮廓结构。' },
-  { tag: '版型', text: '匹配度 92%，袖口与腰线贴合自然，垂坠感良好。' },
-  { tag: '配色', text: '建议内搭替换为低饱和灰蓝，突出外层荧光描边。' },
-  { tag: '细节', text: '领口层次略显厚重，可减少一层叠穿提升呼吸感。' }
-];
+function buildComments(promptText) {
+  return [
+    { tag: '风格', text: `已按「${promptText}」完成换装，整体氛围与二次元画风保持一致。` },
+    { tag: '细节', text: '服装边缘、褶皱与金属/布料质感处理自然，角色面部特征保留完整。' },
+    { tag: '配色', text: '主色调与角色瞳色、发色形成对比，层次分明，视觉焦点集中。' },
+    { tag: '建议', text: '可继续调整描述词（如材质、配饰、场景），尝试更多风格。' }
+  ];
+}
 
-async function renderAIComment() {
+async function renderAIComment(promptText) {
   const token = ++state.typingToken;
   const body = $('#aiBody');
   body.innerHTML = '';
 
-  for (const item of COMMENTS) {
+  const comments = buildComments(promptText || '换装');
+
+  for (const item of comments) {
     if (token !== state.typingToken) return;
 
     const row = document.createElement('div');
