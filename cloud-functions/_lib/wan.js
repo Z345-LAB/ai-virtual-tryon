@@ -83,7 +83,13 @@ export async function generateOutfit({ imageBase64, prompt, env }) {
     });
   } catch (err) {
     const timedOut = err.name === 'TimeoutError' || err.name === 'AbortError';
-    throw new AppError(timedOut ? 504 : 502, timedOut ? '通义万相响应超时，请重试' : `调用通义万相失败：${err.message}`);
+    // 把底层原因带出来：fetch failed 单独看没有信息量，真正的原因在 err.cause.code
+    const cause = err.cause && (err.cause.code || err.cause.message);
+    const suffix = cause ? `（${cause}）` : '';
+    throw new AppError(
+      timedOut ? 504 : 502,
+      timedOut ? '通义万相响应超时，请重试' : `调用通义万相失败：${err.message}${suffix}`,
+    );
   }
 
   const data = await resp.json().catch(() => null);
