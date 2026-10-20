@@ -1,69 +1,129 @@
 require('dotenv').config();
 const express = require('express');
+const cors = require('cors');
 const path = require('path');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = Number(process.env.PORT || 3000);
+const ROOT = path.join(__dirname, '..'); // 仓库根目录（index.html 在这里）
 
-// 允许跨域，并调大请求体限制（Base64 图片较大）
-app.use(express.json({ limit: '20mb' }));
-app.use(express.urlencoded({ limit: '20mb', extended: true }));
-
-// 托管前端静态文件（把 index.html 放到 public 目录下）
-app.use(express.static(path.join(__dirname, 'public')));
-
-// 获取阿里云 API Key
+/* =========================================================
+   基础配置
+========================================================= */
 const API_KEY = process.env.ALIYUN_API_KEY;
+const DASHSCOPE_HOST = (process.env.DASHSCOPE_HOST || 'https://dashscope.aliyuncs.com').replace(/\/+$/, '');
+const WAN_MODEL = process.env.WAN_MODEL || 'wan2.7-image-pro';
+const DEMO_MODEL_URL = process.env.DEMO_MODEL_URL || 'https://modelviewer.dev/shared-assets/models/Astronaut.glb';
+
+// 异步调用路径（注意：同步调用是 multimodal-generation，异步创建任务才是 image-generation）
+const CREATE_URL = `${DASHSCOPE_HOST}/api/v1/services/aigc/image-generation/generation`;
+const TASK_URL = (taskId) => `${DASHSCOPE_HOST}/api/v1/tasks/${taskId}`;
+
 if (!API_KEY) {
-  console.warn('⚠️ 警告: 未配置 ALIYUN_API_KEY 环境变量，换装功能将不可用。');
+  console.warn('⚠️ 未配置 ALIYUN_API_KEY，/functions/tryon 会直接返回错误。请在 .env 中填写后重启。');
 }
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+async function safeJson(resp) {
+  try {
+    return await resp.json();
+  } catch (_) {
+    return null;
+  }
+}
+
+/* =========================================================
+   中间件
+========================================================= */
+// 允许跨域：origin: true 会回显请求来源，file:// 页面（Origin: null）也能通
+app.use(cors({ origin: true, methods: ['GET', 'POST', 'OPTIONS'] }));
+// Base64 图片较大，放宽请求体限制（阿里云单图上限 20MB）
+app.use(express.json({ limit: '25mb' }));
+app.use(express.urlencoded({ limit: '25mb', extended: true }));
+
+// 静态资源：素材放 public/（先注册，避免被根路由吃掉）
+app.use(express.static(path.join(ROOT, 'public')));
+
+// 前端页面：index.html 在仓库根目录，直接访问 / 即可打开
+app.get('/', (req, res) => res.sendFile(path.join(ROOT, 'index.html')));
+
+/* =========================================================
+   健康检查：前端用它判断"服务是否真的在线"
+========================================================= */
+app.get('/api/health', (req, res) => {
+  res.json({
+    ok: true,
+    model: WAN_MODEL,
+    api_key_configured: Boolean(API_KEY),
+    port: PORT,
+    time: new Date().toISOString(),
+  });
+});
 
 /* =========================================================
    接口 1：AI 换装 (通义万相 2.7)
    前端请求: POST /functions/tryon
 ========================================================= */
 app.post('/functions/tryon', async (req, res) => {
+  // 用 res 的 close 判断客户端断开；req.on('close') 在 Node 16+ 会在请求体收完时立刻触发，不能用
+  let aborted = false;
+  res.on('close', () => {
+    if (!res.writableEnded) aborted = true;
+  });
+
+  const send = (code, payload) => {
+    if (res.writableEnded) return;
+    aborted = false;
+    res.status(code).json(payload);
+  };
+
   try {
     const { image_base64, prompt } = req.body || {};
     if (!image_base64 || !prompt) {
-      return res.status(400).json({ success: false, error: '缺少 image_base64 或 prompt' });
+      return send(400, { success: false, error: '缺少 image_base64 或 prompt' });
+    }
+    if (!API_KEY) {
+      return send(500, {
+        success: false,
+        error: '服务端未配置 ALIYUN_API_KEY，请在项目根目录 .env 中填写并重启服务',
+      });
     }
 
-    // 校验并规范化 Base64 格式
-    let finalImageBase64 = image_base64;
-    if (!/^data:image\/(jpeg|png|webp|jpg);base64,/i.test(image_base64)) {
-      finalImageBase64 = `data:image/jpeg;base64,${image_base64}`;
+    // 规范化 Base64（统一补 data URI 前缀，并校验 MIME）
+    let imagePayload = String(image_base64).trim();
+    if (/^data:[^,]*,/i.test(imagePayload)) {
+      const mime = imagePayload.slice(5, imagePayload.indexOf(';')).toLowerCase();
+      if (!/^image\/(jpeg|jpg|png|webp|bmp)$/.test(mime)) {
+        return send(400, { success: false, error: `不支持的图片格式: ${mime}，请使用 JPG/PNG/WEBP` });
+      }
+    } else {
+      imagePayload = `data:image/jpeg;base64,${imagePayload}`;
     }
 
     const systemContext =
       '保持图中二次元虚拟角色的面部特征、发型、瞳色和整体画风完全不变，' +
       '仅根据以下描述更换服装。输出高质量、细节丰富的二次元插画风格。';
-    const finalPrompt = `${systemContext} 换装描述：${prompt.trim()}`;
-
-    const BASE_URL = 'https://dashscope.aliyuncs.com/api/v1';
-    const CREATE_URL = `${BASE_URL}/services/aigc/image-generation/generation/`;
+    const finalPrompt = `${systemContext} 换装描述：${String(prompt).trim()}`;
 
     const requestBody = {
-      model: 'wan2.7-image-pro',
+      model: WAN_MODEL,
       input: {
         messages: [
           {
             role: 'user',
-            content: [
-              { image: finalImageBase64 },
-              { text: finalPrompt },
-            ],
+            content: [{ image: imagePayload }, { text: finalPrompt }],
           },
         ],
       },
       parameters: {
         n: 1,
-        size: '2K',
+        size: '2K', // 有图片输入时最高只支持 2K，4K 仅文生图可用
         watermark: false,
       },
     };
 
-    console.log(`[换装] 提交阿里云任务...`);
+    console.log(`[换装] 提交任务 model=${WAN_MODEL}`);
     const createRes = await fetch(CREATE_URL, {
       method: 'POST',
       headers: {
@@ -72,146 +132,166 @@ app.post('/functions/tryon', async (req, res) => {
         'X-DashScope-Async': 'enable',
       },
       body: JSON.stringify(requestBody),
+      signal: AbortSignal.timeout(30000),
     });
 
-    const createData = await createRes.json();
+    const createData = await safeJson(createRes);
     if (!createRes.ok) {
-      return res.status(createRes.status).json({
+      const detailMsg = (createData && (createData.message || createData.code)) || `HTTP ${createRes.status}`;
+      console.error('[换装] 创建任务失败:', detailMsg);
+      return send(createRes.status, {
         success: false,
-        error: '创建换装任务失败',
-        detail: createData.message || createData,
+        error: `创建换装任务失败：${detailMsg}`,
+        detail: createData,
       });
     }
 
-    const taskId = createData.output && createData.output.task_id;
+    const taskId = createData && createData.output && createData.output.task_id;
     if (!taskId) {
-      return res.status(500).json({ success: false, error: '阿里云未返回 task_id', detail: createData });
+      return send(502, { success: false, error: '阿里云未返回 task_id', detail: createData });
     }
+    console.log(`[换装] task_id=${taskId}`);
 
-    // 轮询任务
-    const POLL_INTERVAL = 5000; // 5秒查一次
-    const MAX_ATTEMPTS = 24;    // 最多等待 120 秒
-    const TASK_URL = `${BASE_URL}/tasks/${taskId}`;
-
-    // 监听客户端断开连接，如果前端关了页面，就停止轮询节省服务器资源
-    let isClientConnected = true;
-    req.on('close', () => {
-      isClientConnected = false;
-      console.log(`[换装] 客户端已断开，停止轮询任务: ${taskId}`);
-    });
+    const POLL_INTERVAL = 3000;
+    const MAX_ATTEMPTS = 50; // 约 150 秒；前端超时设为 180 秒，保证后端先给出明确结论
 
     for (let i = 0; i < MAX_ATTEMPTS; i++) {
-      if (!isClientConnected) return; // 客户端断开，直接终止
-      await new Promise((r) => setTimeout(r, POLL_INTERVAL));
+      if (aborted) {
+        console.log(`[换装] 客户端已断开，停止轮询: ${taskId}`);
+        return;
+      }
+      await sleep(POLL_INTERVAL);
 
       let pollRes;
       try {
-        pollRes = await fetch(TASK_URL, {
+        pollRes = await fetch(TASK_URL(taskId), {
           headers: { Authorization: `Bearer ${API_KEY}` },
+          signal: AbortSignal.timeout(20000),
         });
       } catch (e) {
-        continue; // 网络波动，跳过
+        console.warn(`[换装] 轮询网络异常（第 ${i + 1} 次）: ${e.message}`);
+        continue;
       }
-      if (!pollRes.ok) continue;
+      if (!pollRes.ok) {
+        const errData = await safeJson(pollRes);
+        console.warn(`[换装] 轮询 HTTP ${pollRes.status}`, errData && errData.message);
+        continue;
+      }
 
-      const pollData = await pollRes.json();
-      const status = pollData.output && pollData.output.task_status;
+      const pollData = await safeJson(pollRes);
+      const output = (pollData && pollData.output) || {};
+      const status = output.task_status;
 
       if (status === 'SUCCEEDED') {
-        const output = pollData.output || {};
         let imageUrl = null;
 
-        // 解析万相 2.7 的返回格式
-        if (output.choices && output.choices.length > 0) {
+        // 万相 2.7 返回格式：output.choices[0].message.content[].image
+        if (Array.isArray(output.choices) && output.choices.length) {
           const content = output.choices[0].message && output.choices[0].message.content;
           if (Array.isArray(content)) {
-            const imagePart = content.find((part) => part.image);
+            const imagePart = content.find((part) => part && part.image);
             if (imagePart) imageUrl = imagePart.image;
           }
         }
-
-        // 兜底解析老格式
-        if (!imageUrl && output.results && output.results[0]) {
+        // 兜底：老格式 output.results[0].url
+        if (!imageUrl && Array.isArray(output.results) && output.results[0]) {
           imageUrl = output.results[0].url;
         }
 
         if (!imageUrl) {
-          return res.status(500).json({ success: false, error: '任务成功但未找到图片 URL', detail: output });
+          return send(502, { success: false, error: '任务成功但未解析到图片 URL', detail: output });
         }
 
-        console.log(`[换装] 任务成功: ${taskId}`);
-        return res.status(200).json({
-          success: true,
-          task_id: taskId,
-          image_url: imageUrl,
-        });
+        console.log(`[换装] 成功: ${taskId}`);
+        return send(200, { success: true, task_id: taskId, image_url: imageUrl });
       }
 
-      if (status === 'FAILED') {
-        return res.status(500).json({
+      if (status === 'FAILED' || status === 'CANCELED' || status === 'UNKNOWN') {
+        const reason = output.message || output.code || status;
+        return send(502, {
           success: false,
-          error: '换装任务在阿里云端执行失败',
+          error: `换装任务失败（${status}）：${reason}`,
           task_id: taskId,
-          detail: pollData.output,
+          detail: output,
         });
       }
-      // PENDING / RUNNING 继续循环
+      // PENDING / RUNNING 继续轮询
     }
 
-    return res.status(504).json({ success: false, error: '换装任务超时', task_id: taskId });
-
+    return send(504, {
+      success: false,
+      error: '换装任务超时（约 150 秒），请稍后重试',
+      task_id: taskId,
+    });
   } catch (err) {
     console.error('[tryon] error:', err);
-    res.status(500).json({ success: false, error: '服务器异常', message: err.message });
+    const isTimeout = err.name === 'TimeoutError' || err.name === 'AbortError';
+    return send(isTimeout ? 504 : 500, {
+      success: false,
+      error: isTimeout ? '请求阿里云超时，请重试' : `服务器异常：${err.message}`,
+    });
   }
 });
 
-
 /* =========================================================
-   接口 2：3D 生成（预留/模拟）
+   接口 2：3D 生成（当前为可复现的模拟实现）
    前端请求: POST /functions/create3d
 ========================================================= */
+const threeDJobs = new Map();
+
 app.post('/functions/create3d', (req, res) => {
   const { image_url } = req.body || {};
   if (!image_url) return res.status(400).json({ success: false, error: '缺少 image_url' });
 
-  // 模拟返回 task_id（未来可接入 Tripo3D 或 Meshy）
-  const taskId = 'task_3d_' + Date.now();
+  const taskId = `task_3d_${Date.now().toString(36)}`;
+  threeDJobs.set(taskId, { createdAt: Date.now(), imageUrl: image_url });
   console.log(`[3D] 创建任务: ${taskId}`);
-  
+
   res.json({
     success: true,
     task_id: taskId,
-    message: '3D 任务已提交',
+    message: '3D 任务已提交（演示实现：约 6 秒后返回演示模型）',
   });
 });
 
-
 /* =========================================================
-   接口 3：查询 3D 状态（预留/模拟）
-   前端请求: GET /functions/check3d
+   接口 3：查询 3D 状态（当前为可复现的模拟实现）
+   前端请求: GET /functions/check3d?task_id=xxx
 ========================================================= */
 app.get('/functions/check3d', (req, res) => {
   const { task_id } = req.query;
   if (!task_id) return res.status(400).json({ success: false, error: '缺少 task_id' });
 
-  // 为了让前端演示通过，每次请求有 30% 概率返回成功
-  const isSuccess = Math.random() > 0.7;
-
-  if (isSuccess) {
-    res.json({
-      status: 'SUCCEEDED',
-      model_url: 'https://modelviewer.dev/shared-assets/models/Astronaut.glb',
-    });
-  } else {
-    res.json({
-      status: 'RUNNING',
-      message: '模型构建中...',
-    });
+  const job = threeDJobs.get(task_id);
+  if (!job) {
+    return res.status(404).json({ status: 'FAILED', message: '任务不存在或已过期，请重新生成' });
   }
+
+  if (Date.now() - job.createdAt < 6000) {
+    return res.json({ status: 'RUNNING', message: '模型构建中…' });
+  }
+
+  // TODO: 接入 Tripo3D / Meshy 后，这里改成读取真实任务状态与模型 URL
+  return res.json({ status: 'SUCCEEDED', model_url: DEMO_MODEL_URL });
+});
+
+/* =========================================================
+   兜底
+========================================================= */
+app.use('/functions', (req, res) => {
+  res.status(404).json({
+    success: false,
+    error: `接口不存在: ${req.method} /functions${req.path}`,
+    hint: '可用接口：POST /functions/tryon、POST /functions/create3d、GET /functions/check3d、GET /api/health',
+  });
+});
+
+app.use((req, res) => {
+  res.status(404).send('404 Not Found');
 });
 
 // 启动服务
 app.listen(PORT, () => {
-  console.log(`✅ 服务器已启动，监听端口: ${PORT}`);
+  console.log(`✅ 服务已启动: http://localhost:${PORT}`);
+  console.log(`   模型: ${WAN_MODEL} | API Key: ${API_KEY ? '已配置' : '未配置'}`);
 });
