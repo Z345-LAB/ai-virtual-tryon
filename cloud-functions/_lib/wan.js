@@ -1,4 +1,5 @@
 import { readEnv } from './env.js';
+import { postJson } from './net.js';
 
 const DEFAULT_HOST = 'https://dashscope.aliyuncs.com';
 // 同步调用路径（异步创建任务用的是 image-generation，两者不要混）
@@ -72,15 +73,12 @@ export async function generateOutfit({ imageBase64, prompt, env }) {
   const startedAt = Date.now();
   let resp;
   try {
-    resp = await fetch(`${cfg.host}${SYNC_PATH}`, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${cfg.apiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-      signal: AbortSignal.timeout(cfg.timeoutMs),
-    });
+    resp = await postJson(
+      `${cfg.host}${SYNC_PATH}`,
+      payload,
+      { Authorization: `Bearer ${cfg.apiKey}` },
+      cfg.timeoutMs,
+    );
   } catch (err) {
     const timedOut = err.name === 'TimeoutError' || err.name === 'AbortError';
     // 把底层原因带出来：fetch failed 单独看没有信息量，真正的原因在 err.cause.code
@@ -92,7 +90,7 @@ export async function generateOutfit({ imageBase64, prompt, env }) {
     );
   }
 
-  const data = await resp.json().catch(() => null);
+  const data = resp.data;
 
   if (!resp.ok) {
     const msg = (data && (data.message || data.code)) || `HTTP ${resp.status}`;
