@@ -1078,9 +1078,13 @@ function revealThreeDButton() {
   btn.querySelector('.btn-text').textContent = '生成 360° 3D 展示';
 }
 
+let mvSlowTimer = null;
+let progressText = '';
+
 $('#btn360').addEventListener('click', async () => {
   if (state.threeDLoading) return;
   state.threeDLoading = true;
+  progressText = '';
 
   const btn = $('#btn360');
   const btnText = btn.querySelector('.btn-text');
@@ -1105,13 +1109,21 @@ $('#btn360').addEventListener('click', async () => {
     const taskId = createData.task_id || (createData.output && createData.output.task_id);
     if (!taskId) throw new Error('no task_id');
 
-    const MAX_POLL = 40;
+    if (createData.demo) {
+      setStatus(createData.message || '3D 服务不可用，已切换演示模型');
+    } else {
+      setStatus('3D 任务已提交，正在生成模型…');
+    }
+
+    // Tripo 图生 3D 通常 30–90 秒，这里最多等 3 分钟
+    const MAX_POLL = 60;
     const POLL_GAP = 3000;
     let modelUrl = null;
+    let previewUrl = null;
 
     for (let i = 0; i < MAX_POLL; i++) {
       await wait(POLL_GAP);
-      setStatus(`3D 构建中… 已等待 ${(i + 1) * 3} 秒`);
+      setStatus(`3D 构建中… ${progressText} 已等待 ${(i + 1) * 3} 秒`);
 
       let checkResp;
       try {
@@ -1125,26 +1137,31 @@ $('#btn360').addEventListener('click', async () => {
       const checkData = await checkResp.json();
       const status = checkData.status || (checkData.output && checkData.output.task_status);
 
+      if (typeof checkData.progress === 'number') {
+        progressText = `${checkData.progress}% ·`;
+      }
+
       if (status === 'SUCCEEDED' || status === 'success' || status === 'SUCCESS') {
         modelUrl = checkData.model_url || (checkData.output && checkData.output.model_url);
+        previewUrl = checkData.preview_url || null;
         if (!modelUrl) throw new Error('no model_url');
         break;
       }
       if (status === 'FAILED' || status === 'failed') {
-        throw new Error('3D 任务失败');
+        throw new Error(checkData.message || '3D 任务失败');
       }
     }
 
     if (!modelUrl) throw new Error('3D 任务超时');
 
     state.threeD = true;
-    loadModelIntoViewer(modelUrl);
+    loadModelIntoViewer(modelUrl, previewUrl);
     setStatus('3D 模型加载中…');
   } catch (err) {
     console.warn('[3d] fallback to demo model:', err);
     state.threeD = true;
     loadModelIntoViewer(DEMO_MODEL_URL);
-    setStatus('3D 后端暂不可用 · 已加载演示模型');
+    setStatus(`3D 生成未成功（${err.message}）· 已加载演示模型`);
   } finally {
     state.threeDLoading = false;
     btn.disabled = false;
@@ -1152,9 +1169,7 @@ $('#btn360').addEventListener('click', async () => {
   }
 });
 
-let mvSlowTimer = null;
-
-function loadModelIntoViewer(url) {
+function loadModelIntoViewer(url, previewUrl = null) {
   const mv = $('#mv');
   const mvLoading = $('#mvLoading');
   const placeholder = $('#placeholder');
@@ -1189,7 +1204,16 @@ function loadModelIntoViewer(url) {
   mv.addEventListener('error', () => {
     clearTimeout(mvSlowTimer);
     mvLoading.classList.add('hidden');
-    setStatus('3D 模型加载失败，请检查网络后重试');
+    // Tripo 的模型链接有时不带 CORS 头，model-viewer 拉不到时退化成静态预览图
+    if (previewUrl) {
+      mv.classList.add('hidden');
+      aiResult.classList.remove('hidden');
+      aiResult.onload = () => aiResult.classList.add('show');
+      aiResult.src = previewUrl;
+      setStatus('3D 模型拉取失败（跨域限制）· 已改为显示模型预览图');
+    } else {
+      setStatus('3D 模型加载失败，请检查网络后重试');
+    }
   }, { once: true });
 
   mv.src = url;
