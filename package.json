@@ -1,15 +1,16 @@
 {
   "name": "ai-virtual-tryon",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
+  "type": "module",
   "description": "虚拟角色一键换装与 3D 展示（通义万相 wan2.7-image-pro）",
-  "main": "functions/tryon.js",
+  "main": "server.js",
   "scripts": {
-    "start": "node functions/tryon.js",
-    "dev": "node --watch functions/tryon.js"
+    "start": "node server.js",
+    "dev": "node --watch server.js"
   },
   "engines": {
-    "node": ">=18"
+    "node": ">=20"
   },
   "dependencies": {
     "cors": "^2.8.5",
