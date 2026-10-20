@@ -13,6 +13,7 @@
 | 后端（线上） | EdgeOne Pages Cloud Functions，Node.js 20 |
 | 后端（本地） | Node.js + Express（与线上共用同一份核心逻辑） |
 | 图像生成 | 阿里云百炼 · 通义万相 `wan2.7-image-pro`，同步调用 |
+| 3D 生成 | Tripo3D `image_to_model`（图生 3D），异步任务 + 轮询 |
 
 ## 目录结构
 
@@ -23,8 +24,9 @@ ai-virtual-tryon/
 ├── cloud-functions/          # EdgeOne Pages 云函数，文件路径即路由
 │   ├── _lib/                 # 共享模块（不导出 handler，不会注册成路由）
 │   │   ├── wan.js            # 通义万相调用核心
-│   │   ├── http.js           # JSON 响应 / CORS
-│   │   └── three.js          # 3D 任务状态（无状态，可跑在边缘）
+│   │   ├── three.js          # Tripo 图生 3D + 降级逻辑
+│   │   ├── env.js            # 环境变量读取（context.env / process.env）
+│   │   └── http.js           # JSON 响应 / CORS
 │   └── api/
 │       ├── health.js         # → /api/health
 │       ├── tryon.js          # → /api/tryon
@@ -83,8 +85,12 @@ npm start
 | `WAN_MODEL` | 否 | 默认 `wan2.7-image-pro`，可换 `wan2.7-image` |
 | `WAN_SIZE` | 否 | 默认 `2K`；有图片输入时最高就是 2K |
 | `WAN_TIMEOUT_MS` | 否 | 单次调用超时，默认 55000 |
+| `TRIPO_API_KEY` | 否 | Tripo 的 Key（`tsk_` 开头）。不填则 3D 走演示模型 |
+| `TRIPO_HOST` | 否 | 默认 `https://api.tripo3d.com/v2/openapi`（国内可直连）；国际站 `https://api.tripo3d.ai/v2/openapi` 在国内会被 DNS 污染 |
+| `TRIPO_MODEL_VERSION` | 否 | 固定模型版本，留空用最新 |
+| `TRIPO_TIMEOUT_MS` | 否 | Tripo 单次请求超时，默认 25000 |
 | `PORT` | 否 | 本地服务端口，默认 `3000` |
-| `DEMO_MODEL_URL` | 否 | 3D 演示模型地址 |
+| `DEMO_MODEL_URL` | 否 | Tripo 不可用时的演示模型地址 |
 
 ## 接口
 
@@ -92,8 +98,8 @@ npm start
 |---|---|---|
 | GET | `/api/health` | 健康检查，返回 `model` 与 `api_key_configured`，前端据此显示在线状态 |
 | POST | `/api/tryon` | 换装。入参 `{ image_base64, prompt }`，出参 `{ success, image_url, elapsed_ms }` |
-| POST | `/api/create3d` | 提交 3D 任务，入参 `{ image_url }`，返回 `task_id` |
-| GET | `/api/check3d?task_id=` | 查询 3D 任务，返回 `status`、`model_url` |
+| POST | `/api/create3d` | 提交 3D 任务，入参 `{ image_url }`；返回 `task_id`、`demo`（是否降级）、`message` |
+| GET | `/api/check3d?task_id=` | 查询 3D 任务，返回 `status`、`progress`、`model_url`、`preview_url` |
 
 换装走**同步调用**：一次请求直接拿图，实测 10–20 秒返回。相比异步任务 + 轮询，少一次任务创建、少 N 次查询，更适合跑在云函数里（云函数单次执行有时长上限）。
 
@@ -104,8 +110,9 @@ npm start
 - [x] 结果图淡入展示、AI 点评打字机效果
 - [x] 一键体验（内置示例图，无需上传）
 - [x] 前后端同域部署到 EdgeOne Pages，无服务器形态
-- [x] 3D 展示容器与加载态（**当前为演示实现**：6 秒后返回 Astronaut 演示模型，任务状态由时间戳推导，无服务端状态）
-- [ ] 接入真实图生 3D（Tripo3D / Meshy），只需替换 `_lib/three.js` 的创建与查询
+- [x] 接入 Tripo `image_to_model` 图生 3D：换装结果图 → 上传 → 建任务 → 轮询进度 → 加载 glb
+- [x] 3D 全链路降级：没配 Key、余额不足、网络不通时自动回退演示模型并说明原因
+- [ ] 3D 模型的持久化保存（Tripo 输出链接只有 5 分钟有效期）
 - [ ] 历史记录与作品保存
 
 ## 注意事项
@@ -115,3 +122,6 @@ npm start
 - 输入图片要求：JPG / PNG / WEBP，宽高均在 240–8000 像素之间，单图不超过 20MB；PNG 不支持透明通道，前端统一压成白底 JPEG。
 - 有一张图片输入时输出上限为 2K，4K 仅文生图场景支持。
 - EdgeOne Pages 云函数的请求/响应体上限是 6MB，本项目只回传图片 URL，远低于限制。
+- Tripo 的模型下载链接**只有 5 分钟有效期**，页面会立刻加载；刷新后需要重新生成，长期保存请下载到自己的存储。
+- Tripo 账户按 credits 计费，图生 3D 约 30–50 credits/次；余额为 0 时会自动降级为演示模型，状态栏会显示具体原因。
+- Tripo 模型链接如果没带 CORS 头，`model-viewer` 拉不到 glb，此时会自动改为显示模型预览图。
