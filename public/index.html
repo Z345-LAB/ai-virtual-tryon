@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>次元造物 - 虚拟角色一键换装与 3D 化</title>
-<script type="module" src="https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js"></script>
+<script type="module" src="/vendor/model-viewer.min.js"></script>
 <style>
 /* ================= 基础 & 变量 ================= */
 *, *::before, *::after { box-sizing: border-box; }
@@ -1170,12 +1170,31 @@ $('#btn360').addEventListener('click', async () => {
   }
 });
 
-function loadModelIntoViewer(url, previewUrl = null) {
+// 等 model-viewer 自定义元素注册完成；没注册的话设置 src 不会有任何反应
+async function ensureModelViewerReady(timeoutMs = 8000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (window.customElements && customElements.get('model-viewer')) return true;
+    await wait(250);
+  }
+  return false;
+}
+
+async function loadModelIntoViewer(url, previewUrl = null) {
   const mv = $('#mv');
   const mvLoading = $('#mvLoading');
   const placeholder = $('#placeholder');
   const aiResult = $('#aiResult');
   const badge = $('#stageBadge');
+
+  const viewerReady = await ensureModelViewerReady();
+  if (!viewerReady) {
+    mvLoading.classList.add('hidden');
+    badge.textContent = '3D ERROR';
+    badge.classList.remove('live');
+    setStatus('3D 展示组件没能加载（网络问题）· 请刷新页面后重试');
+    return;
+  }
 
   placeholder.classList.add('fade-out');
   setTimeout(() => placeholder.classList.add('hidden'), 460);
@@ -1197,7 +1216,9 @@ function loadModelIntoViewer(url, previewUrl = null) {
     return;
   }
 
-  mv.classList.add('hidden');
+  // 不用 display:none 藏起来：加载提示层盖在它上面就行。
+  // 某些浏览器里 display:none 的 model-viewer 不会触发 load，会让人误以为"永远在载入"
+  mv.classList.remove('hidden');
   mvLoading.classList.remove('hidden');
 
   const tip = $('#mvLoadingText');
