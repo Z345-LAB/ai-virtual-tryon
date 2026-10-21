@@ -87,7 +87,9 @@ npm start
 | `WAN_TIMEOUT_MS` | 否 | 单次调用超时，默认 55000 |
 | `TRIPO_API_KEY` | 否 | Tripo 的 Key（`tsk_` 开头）。不填则 3D 走演示模型。注意 `tcli_` 开头的是 Client ID，不能用于认证 |
 | `TRIPO_HOST` | 否 | 默认 `https://openapi.tripo3d.com/v3`（国内可直连）；国际站 `https://openapi.tripo3d.ai/v3` 在国内会被 DNS 污染 |
-| `TRIPO_MODEL_VERSION` | 否 | 默认 `v3.1-20260211`，可选 `P1-20260311` / `P2-20260801` / `v2.5-20250123` / `v3.0-20250812` |
+| `TRIPO_MODEL_VERSION` | 否 | 默认 `v3.1-20260211`（高模，约 139 万面/42MB，网页端很重）；网页展示建议改 `P1-20260311`（游戏就绪，500–25K 面） |
+| `TRIPO_FACE_LIMIT` | 否 | 面数上限，设了才传 `face_limit`；例如 `30000` |
+| `TRIPO_TEXTURE_QUALITY` | 否 | `standard` / `detailed` |
 | `TRIPO_TIMEOUT_MS` | 否 | Tripo 单次请求超时，默认 25000 |
 | `PORT` | 否 | 本地服务端口，默认 `3000` |
 | `DEMO_MODEL_URL` | 否 | Tripo 不可用时的演示模型地址 |

@@ -10,10 +10,14 @@ const DEFAULT_DEMO_MODEL = '/models/robot.glb';
 const DEMO_BUILD_MS = 2000;
 
 export function getTripoConfig(env) {
+  const faceLimit = Number(readEnv(env, 'TRIPO_FACE_LIMIT', '0'));
   return {
     apiKey: readEnv(env, 'TRIPO_API_KEY'),
     host: String(readEnv(env, 'TRIPO_HOST', DEFAULT_HOST)).replace(/\/+$/, ''),
     model: readEnv(env, 'TRIPO_MODEL_VERSION', DEFAULT_MODEL),
+    faceLimit: Number.isFinite(faceLimit) && faceLimit > 0 ? faceLimit : null,
+    textureQuality: readEnv(env, 'TRIPO_TEXTURE_QUALITY'), // standard / detailed
+    smartLowPoly: String(readEnv(env, 'TRIPO_SMART_LOW_POLY', '')).toLowerCase() === 'true',
     timeoutMs: Number(readEnv(env, 'TRIPO_TIMEOUT_MS', '25000')),
   };
 }
@@ -67,9 +71,15 @@ export async function createModelTask({ imageUrl, env }) {
   if (!imageUrl) return degraded('缺少图片地址');
 
   try {
+    // 只传确定合法的参数：model 必填；其余按需附加，避免服务端报 1004
+    const payload = { input: imageUrl, model: cfg.model };
+    if (cfg.faceLimit) payload.face_limit = cfg.faceLimit;
+    if (cfg.textureQuality) payload.texture_quality = cfg.textureQuality;
+    if (cfg.smartLowPoly) payload.smart_low_poly = true;
+
     const resp = await postJson(
       `${cfg.host}/generation/image-to-model`,
-      { input: imageUrl, model: cfg.model },
+      payload,
       { Authorization: `Bearer ${cfg.apiKey}` },
       cfg.timeoutMs,
     );

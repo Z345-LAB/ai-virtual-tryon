@@ -489,7 +489,7 @@ model-viewer.hidden{ display: none; }
 /* 3D 加载提示 */
 .mv-loading{
   position: absolute; inset: 0; z-index: 5;
-  display: grid; place-items: center;
+  display: flex; align-items: center; justify-content: center; gap: 9px;
   font-size: 12px; letter-spacing: .16em; color: #cdefff;
   background: rgba(3,8,18,.55);
   backdrop-filter: blur(2px);
@@ -676,7 +676,8 @@ model-viewer.hidden{ display: none; }
 
       <!-- 3D 加载提示 -->
       <div class="mv-loading hidden" id="mvLoading">
-        <span class="spinner"></span>&nbsp;&nbsp;正在载入 3D 模型…
+        <span class="spinner"></span>
+        <span id="mvLoadingText">正在载入 3D 模型…</span>
       </div>
 
       <!-- 处理中遮罩 -->
@@ -1198,6 +1199,16 @@ function loadModelIntoViewer(url, previewUrl = null) {
 
   mv.classList.add('hidden');
   mvLoading.classList.remove('hidden');
+
+  const tip = $('#mvLoadingText');
+  if (tip) tip.textContent = '正在载入 3D 模型…';
+
+  // model-viewer 会在下载过程中持续抛 progress，用它显示真实百分比
+  mv.addEventListener('progress', (e) => {
+    const p = Math.round((e.detail && e.detail.totalProgress ? e.detail.totalProgress : 0) * 100);
+    if (tip) tip.textContent = `正在载入 3D 模型 ${p}%`;
+  });
+
   mv.dataset.src = url;
 
   mv.addEventListener('load', reveal, { once: true });
@@ -1218,10 +1229,20 @@ function loadModelIntoViewer(url, previewUrl = null) {
 
   mv.src = url;
 
+  // 60 秒还没加载出来，多半是模型面数太高、浏览器扛不住，直接退回演示模型，
+  // 避免界面永远停在「模型载入中」
   clearTimeout(mvSlowTimer);
   mvSlowTimer = setTimeout(() => {
-    if (!mv.loaded) setStatus('3D 模型仍在下载，请再稍候…');
-  }, 15000);
+    if (mv.loaded) return;
+    if (url === DEMO_MODEL_URL) {
+      if (tip) tip.textContent = '演示模型加载超时，请检查网络';
+      setStatus('3D 模型加载超时，请检查网络后重试');
+      return;
+    }
+    mvLoading.classList.add('hidden');
+    setStatus('3D 模型过大，浏览器加载超时 · 已切换为演示模型');
+    loadModelIntoViewer(DEMO_MODEL_URL);
+  }, 60000);
 }
 
 /* =========================================================
