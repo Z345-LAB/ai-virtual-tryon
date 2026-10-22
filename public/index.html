@@ -227,7 +227,21 @@ main{
   background: var(--seal);
   flex: none;
 }
-.preset-label{ flex: 1; }
+.preset-text{
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.preset-label{ flex: none; font-size: 12.5px; letter-spacing: .1em; }
+.preset-sub{
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .1em;
+  color: var(--ink-3);
+  transition: color .22s;
+}
 .preset-tag{
   font-family: var(--mono);
   font-size: 8.5px;
@@ -483,8 +497,8 @@ main{
 }
 .empty-cross{
   position: absolute;
-  left: 50%; top: 42%;
-  width: 1px; height: 52px;
+  left: 50%; top: 15%;
+  width: 1px; height: 30px;
   background: var(--line-3);
   transform: translate(-50%, -50%);
   opacity: .7;
@@ -493,7 +507,7 @@ main{
   content: "";
   position: absolute;
   left: 50%; top: 50%;
-  width: 52px; height: 1px;
+  width: 30px; height: 1px;
   background: var(--line-3);
   transform: translate(-50%, -50%);
 }
@@ -785,6 +799,108 @@ model-viewer.hidden{ display: none; }
   flex: none;
 }
 
+/* ================= 首屏主操作 ================= */
+.hero{
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(400px, 82%);
+  text-align: left;
+}
+.hero-eyebrow{
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--seal);
+  margin-bottom: 12px;
+}
+.hero-title{
+  margin: 0;
+  font-size: 23px;
+  font-weight: 400;
+  letter-spacing: .03em;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.hero-desc{
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.85;
+  color: var(--ink-3);
+  max-width: 30ch;
+}
+.hero-cta{
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  width: 100%;
+  margin-top: 22px;
+  padding: 17px 20px;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  color: var(--paper-2);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: background .24s, transform .16s, box-shadow .24s;
+}
+.hero-cta svg{
+  width: 18px; height: 18px;
+  stroke: currentColor; fill: none; stroke-width: 1.4;
+  transition: transform .3s cubic-bezier(.16,1,.3,1);
+}
+.hero-cta:hover:not(:disabled){ background: #2C2823; box-shadow: 0 10px 24px -16px rgba(26,24,21,.9); }
+.hero-cta:hover:not(:disabled) svg{ transform: translateX(4px); }
+.hero-cta:active:not(:disabled){ transform: translateY(1px); }
+.hero-cta:disabled{ opacity: .45; cursor: not-allowed; }
+.hero-link{
+  margin-top: 14px;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  transition: color .2s, border-color .2s;
+}
+.hero-link:hover{ color: var(--ink); border-bottom-color: var(--line-3); }
+
+/* ---- 首屏层级：还没图时，「一键体验」是唯一墨块，开始换装退为描边 ---- */
+body.is-first #btnTry:not(:disabled){
+  color: var(--ink-2);
+  background: transparent;
+  border-color: var(--line-2);
+}
+body.is-first #btnTry:not(:disabled):hover{
+  color: var(--ink);
+  background: var(--paper-3);
+  border-color: var(--ink-3);
+}
+body.is-first .preset-btn:not(:disabled){
+  color: var(--paper-2);
+  background: var(--ink);
+  border-color: var(--ink);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+}
+body.is-first .preset-btn:not(:disabled) .preset-tag{
+  color: var(--paper-2);
+  border-color: rgba(255,255,255,.3);
+}
+body.is-first .preset-btn:not(:disabled) .preset-sub{
+  color: rgba(250,248,242,.62);
+}
+body.is-first .preset-btn:not(:disabled):hover{
+  background: #2C2823;
+  border-color: #2C2823;
+}
+
 /* ================= 忙碌降权 ================= */
 body.is-busy .preset-btn,
 body.is-busy .upload-box,
@@ -880,7 +996,10 @@ body.is-busy .desc-input{
         </div>
         <button class="preset-btn preset-primary" id="presetOne">
           <span class="preset-mark" aria-hidden="true"></span>
-          <span class="preset-label">一键体验</span>
+          <span class="preset-text">
+            <span class="preset-label">一键体验</span>
+            <span class="preset-sub">无需上传图片</span>
+          </span>
           <span class="preset-tag">古风</span>
         </button>
         <div class="upload-box" id="boxPerson" style="margin-top:10px">
@@ -948,10 +1067,15 @@ body.is-busy .desc-input{
       <div class="placeholder" id="placeholder">
         <div class="empty">
           <div class="empty-cross" aria-hidden="true"></div>
-          <div class="empty-copy">
-            <span class="empty-idx">尚未生成</span>
-            <p class="empty-line1">舞台是空的</p>
-            <p class="empty-line2">左侧选择示例角色，或上传你自己的立绘，写下想换的服装后开始。</p>
+          <div class="hero">
+            <span class="hero-eyebrow">无需上传 · 约 10 秒</span>
+            <p class="hero-title">先看看它能做什么</p>
+            <p class="hero-desc">用内置的古风角色跑一遍完整流程：换装、再变 3D。不满意再换成你自己的图。</p>
+            <button class="hero-cta" id="heroTry" type="button">
+              <span>一键体验</span>
+              <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"></path><path d="M12.5 5.5L19 12l-6.5 6.5"></path></svg>
+            </button>
+            <button class="hero-link" id="heroUpload" type="button">或者，上传自己的角色</button>
           </div>
           <div class="ph-caption">Idle / 等待输入</div>
         </div>
@@ -1063,6 +1187,12 @@ const $ = (sel) => document.querySelector(sel);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const setStatus = (text) => { $('#status').textContent = text; };
 
+/* 首屏层级：没有底图时，「一键体验」是唯一的主操作 */
+function syncHierarchy() {
+  const armed = Boolean(state.personFile || state.personDataUrl);
+  document.body.classList.toggle('is-first', !armed);
+}
+
 /* =========================================================
    交互锁定：生成期间禁用所有会触发新请求的控件
    —— 避免重复点击造成重复计费
@@ -1089,6 +1219,11 @@ function syncControls() {
   // 3D 按钮：没有换装结果或正在生成时都不可用
   const b360 = $('#btn360');
   if (b360) b360.disabled = busy || !state.tried;
+
+  const hero = $('#heroTry');
+  if (hero) hero.disabled = busy;
+
+  syncHierarchy();
 }
 
 /* =========================================================
@@ -1545,6 +1680,14 @@ async function runPreset(kind) {
 }
 
 $('#presetOne').addEventListener('click', () => runPreset('gufeng'));
+
+/* 首屏主操作：与左栏按钮同一个动作，方便"不想思考"的人直接点 */
+$('#heroTry').addEventListener('click', () => runPreset('gufeng'));
+$('#heroUpload').addEventListener('click', () => {
+  $('#filePerson').click();
+  const box = $('#boxPerson');
+  if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
 
 /* =========================================================
    3D 生成流程
