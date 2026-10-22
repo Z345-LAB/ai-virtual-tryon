@@ -192,29 +192,52 @@ main{
   color: var(--ink-3);
 }
 
-/* 预设 */
-.preset-row{ display: flex; gap: 7px; }
+/* 预设：唯一入口，做成加深的实心块 */
 .preset-btn{
-  flex: 1;
-  padding: 9px 8px;
+  width: 100%;
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 14px;
   font-family: inherit;
-  font-size: 11.5px;
-  letter-spacing: .04em;
-  color: var(--ink-2);
-  background: transparent;
-  border: 1px solid var(--line-2);
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: .1em;
+  text-align: left;
+  color: var(--ink);
+  background: #E7DFCE;
+  border: 1px solid var(--line-3);
   border-radius: var(--r);
   cursor: pointer;
   white-space: nowrap;
-  transition: color .18s, border-color .18s, background .26s, transform .18s;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
+  transition: background .22s, border-color .22s, transform .16s, box-shadow .22s;
 }
 .preset-btn:hover:not(:disabled){
-  color: var(--ink);
-  border-color: var(--ink-3);
-  background: var(--paper-2);
+  background: #DFD5C0;
+  border-color: var(--ink-2);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 6px 14px -10px rgba(60,48,32,.6);
 }
-.preset-btn:active:not(:disabled){ transform: translateY(1px); }
-.preset-btn:disabled{ opacity: .35; cursor: not-allowed; }
+.preset-btn:active:not(:disabled){
+  transform: translateY(1px);
+  box-shadow: inset 0 1px 2px rgba(60,48,32,.18);
+}
+.preset-btn:disabled{ opacity: .38; cursor: not-allowed; }
+
+.preset-mark{
+  width: 2px; height: 14px;
+  background: var(--seal);
+  flex: none;
+}
+.preset-label{ flex: 1; }
+.preset-tag{
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--seal);
+  padding: 2px 6px;
+  border: 1px solid var(--seal-line);
+  border-radius: 2px;
+}
 
 .preset-note{
   margin: 11px 0 0;
@@ -855,10 +878,11 @@ body.is-busy .desc-input{
           <span class="step-title">参考角色</span>
           <span class="step-hint">Reference</span>
         </div>
-        <div class="preset-row">
-          <button class="preset-btn" id="presetCyber">一键赛博风</button>
-          <button class="preset-btn" id="presetGufeng">一键古风</button>
-        </div>
+        <button class="preset-btn preset-primary" id="presetOne">
+          <span class="preset-mark" aria-hidden="true"></span>
+          <span class="preset-label">一键体验</span>
+          <span class="preset-tag">古风</span>
+        </button>
         <div class="upload-box" id="boxPerson" style="margin-top:10px">
           <input type="file" accept="image/*" id="filePerson" hidden>
           <div class="upload-inner">
@@ -871,7 +895,7 @@ body.is-busy .desc-input{
           </div>
           <img class="preview" id="prevPerson" alt="角色底图预览">
         </div>
-        <p class="preset-note">内置示例角色，可直接体验；也可上传自己的立绘。</p>
+        <p class="preset-note">内置示例角色 + 古风设定，点一下跑通全流程。</p>
       </div>
     </div>
 
@@ -1046,7 +1070,7 @@ const setStatus = (text) => { $('#status').textContent = text; };
 function syncControls() {
   const busy = state.busy || state.threeDLoading;
 
-  ['#presetCyber', '#presetGufeng'].forEach((sel) => {
+  ['#presetOne'].forEach((sel) => {
     const el = $(sel);
     if (el) el.disabled = busy;
   });
@@ -1520,8 +1544,7 @@ async function runPreset(kind) {
   }
 }
 
-$('#presetCyber').addEventListener('click', () => runPreset('cyber'));
-$('#presetGufeng').addEventListener('click', () => runPreset('gufeng'));
+$('#presetOne').addEventListener('click', () => runPreset('gufeng'));
 
 /* =========================================================
    3D 生成流程
