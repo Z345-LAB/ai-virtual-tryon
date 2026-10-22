@@ -553,6 +553,220 @@ model-viewer.hidden{ display: none; }
   .viewer{ min-height: 440px; }
   .console{ overflow: visible; }
 }
+/* =========================================================
+   精修层 v3.1：设计令牌 / 层级 / 交互态
+   （后置覆盖，避免破坏上面的既有样式）
+========================================================= */
+
+:root{
+  --r-xs: 8px;  --r-sm: 10px; --r-md: 14px; --r-lg: 18px; --r-xl: 24px;
+  --line: rgba(150, 210, 255, .10);
+  --line-strong: rgba(150, 210, 255, .22);
+  --txt-hi: #f2fbff;
+  --txt-md: #bcd9ee;
+  --txt-lo: rgba(160, 196, 226, .52);
+  --ease-out: cubic-bezier(.22, .61, .36, 1);
+  --ease-spring: cubic-bezier(.34, 1.4, .64, 1);
+  --dur-1: .18s; --dur-2: .3s; --dur-3: .55s;
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", Consolas, monospace;
+}
+
+body{
+  font-feature-settings: "kern" 1, "liga" 1;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 玻璃面板：降低饱和度，加一层顶部线性高光，避免"塑料感" */
+.glass{
+  border: 1px solid var(--line);
+  border-radius: var(--r-xl);
+  background: linear-gradient(168deg, rgba(255,255,255,.062), rgba(255,255,255,.014) 46%, rgba(255,255,255,.028));
+  box-shadow:
+    0 24px 60px -18px rgba(0,0,0,.75),
+    inset 0 1px 0 rgba(255,255,255,.10);
+}
+.glass::before{
+  content: "";
+  position: absolute; inset: 0 0 auto; height: 1px;
+  border-radius: inherit;
+  background: linear-gradient(90deg, transparent, rgba(0,234,255,.45), transparent);
+  opacity: .55;
+  pointer-events: none;
+}
+
+/* 字层级：标题收紧字距，副标题拉开，形成对比 */
+.brand h1{
+  letter-spacing: .02em;
+  font-weight: 600;
+  font-size: 21px;
+}
+.brand p{ letter-spacing: .3em; font-size: 9.5px; color: var(--txt-lo); }
+
+.panel-head h2{ letter-spacing: .02em; }
+.head-sub{ letter-spacing: .26em; color: var(--txt-lo); }
+
+/* ---- 按钮层级：主实心 / 次描边 / 辅助胶囊 ---- */
+.btn{
+  border-radius: var(--r-md);
+  letter-spacing: .1em;
+  font-weight: 600;
+  transition:
+    transform var(--dur-2) var(--ease-spring),
+    box-shadow var(--dur-2) var(--ease-out),
+    border-color var(--dur-2) var(--ease-out),
+    background var(--dur-2) var(--ease-out),
+    opacity var(--dur-2) var(--ease-out);
+}
+.btn:active{ transform: translateY(0) scale(.985); }
+
+.btn-primary{
+  background: linear-gradient(126deg, rgba(0,234,255,.26), rgba(122,110,255,.22) 62%, rgba(255,53,208,.16));
+  border-color: rgba(0,234,255,.5);
+  color: #f4feff;
+}
+.btn-primary:hover{ background: linear-gradient(126deg, rgba(0,234,255,.34), rgba(122,110,255,.28) 62%, rgba(255,53,208,.2)); }
+
+/* 次要按钮改成"描边幽灵"，视觉权重明显低于主按钮 */
+.btn-secondary{
+  background: rgba(255,255,255,.018);
+  border-color: rgba(255,53,208,.38);
+  color: #ffd9f4;
+  text-shadow: none;
+}
+.btn-secondary:not(:disabled):hover{
+  background: rgba(255,53,208,.09);
+  border-color: rgba(255,53,208,.7);
+  text-shadow: 0 0 14px rgba(255,53,208,.5);
+}
+
+/* 禁用态：不只降透明度，同时去饱和 + 去掉动效，指向性更明确 */
+.btn:disabled,
+.preset-btn:disabled{
+  opacity: .34;
+  filter: saturate(.35);
+  cursor: not-allowed;
+  animation: none !important;
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* 3D 按钮即使不可用也要"看得见"——否则评委不知道还有这个功能 */
+#btn360:disabled{
+  opacity: .62;
+  filter: saturate(.55);
+  border-style: dashed;
+  background: rgba(255,53,208,.045);
+}
+
+/* 展示区四角框线：给一点"全息舱"的仪式感 */
+.viewer::before,
+.viewer::after{
+  content: "";
+  position: absolute;
+  width: 26px; height: 26px;
+  z-index: 4;
+  pointer-events: none;
+  border-color: rgba(0,234,255,.45);
+  border-style: solid;
+  opacity: .75;
+}
+.viewer::before{ top: 12px; left: 12px; border-width: 1px 0 0 1px; border-top-left-radius: 6px; }
+.viewer::after{ bottom: 12px; right: 12px; border-width: 0 1px 1px 0; border-bottom-right-radius: 6px; }
+
+/* ---- 生成中锁定：整块控制台降到"待命"状态 ---- */
+body.is-busy .preset-btn,
+body.is-busy .upload-box,
+body.is-busy .desc-input{
+  pointer-events: none;
+  opacity: .42;
+  filter: saturate(.4);
+}
+body.is-busy .upload-box{ border-style: dashed; }
+
+.upload-box.locked::after{
+  content: "";
+  position: absolute; inset: 0;
+  background: rgba(3,7,16,.35);
+  pointer-events: none;
+}
+
+/* ---- 下载胶囊（叠在展示区右下角） ---- */
+.dl-bar{
+  position: absolute; right: 14px; bottom: 14px;
+  z-index: 7;
+  display: flex; gap: 8px;
+}
+.dl-btn{
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 9px 14px;
+  border-radius: 999px;
+  font-family: inherit; font-size: 11.5px; font-weight: 600; letter-spacing: .06em;
+  color: #d9f4ff;
+  cursor: pointer;
+  border: 1px solid var(--line-strong);
+  background: rgba(6,14,26,.72);
+  backdrop-filter: blur(14px) saturate(140%);
+  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  box-shadow: 0 8px 22px rgba(0,0,0,.45);
+  opacity: 0; transform: translateY(8px); pointer-events: none;
+  transition: opacity var(--dur-2) var(--ease-out),
+              transform var(--dur-2) var(--ease-spring),
+              border-color var(--dur-1), color var(--dur-1), background var(--dur-1);
+}
+.dl-btn.show{ opacity: 1; transform: none; pointer-events: auto; }
+.dl-btn:hover{ color: #fff; border-color: rgba(0,234,255,.65); background: rgba(0,234,255,.14); }
+.dl-btn:active{ transform: scale(.97); }
+.dl-btn svg{ width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; }
+.dl-btn[disabled]{ opacity: .4; cursor: progress; }
+
+/* ---- 进度条 ---- */
+.proc-bar{
+  position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
+  background: rgba(255,255,255,.07);
+  overflow: hidden;
+  z-index: 6;
+  opacity: 0; transition: opacity var(--dur-2);
+}
+.proc-bar.on{ opacity: 1; }
+.proc-fill{
+  display: block; height: 100%; width: 30%;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  animation: barSlide 1.3s var(--ease-out) infinite;
+}
+.proc-fill.determinate{
+  width: 0;
+  background: linear-gradient(90deg, rgba(0,234,255,.5), var(--cyan));
+  animation: none;
+  transition: width var(--dur-2) var(--ease-out);
+  box-shadow: 0 0 12px rgba(0,234,255,.7);
+}
+@keyframes barSlide{
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(340%); }
+}
+
+/* 顶部落丝：3D 生成进度 */
+.top-progress{
+  position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  z-index: 8; background: rgba(255,255,255,.06);
+  opacity: 0; transition: opacity var(--dur-2);
+}
+.top-progress.on{ opacity: 1; }
+.top-progress span{
+  display: block; height: 100%; width: 0;
+  background: linear-gradient(90deg, var(--violet), var(--magenta));
+  box-shadow: 0 0 14px rgba(255,53,208,.6);
+  transition: width var(--dur-3) var(--ease-out);
+}
+
+/* 等宽数字，计时器跳动时不抖 */
+.proc-elapsed{ font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+@media (max-width: 860px){
+  .dl-bar{ right: 10px; bottom: 10px; }
+  .dl-btn{ padding: 8px 11px; font-size: 11px; }
+}
+
 </style>
 </head>
 <body>
@@ -647,9 +861,12 @@ model-viewer.hidden{ display: none; }
 
     <div class="viewer" id="viewer">
 
+      <!-- 3D 生成进度条 -->
+      <div class="top-progress" id="topProgress"><span id="topProgressFill"></span></div>
+
       <!-- 默认假图 -->
       <div class="placeholder" id="placeholder">
-        <img src="https://images.unsplash.com/photo-1578632767115-351597cf2477?q=80&w=900&auto=format&fit=crop" alt="示例展示图">
+        <img src="/img/stage-demo.jpg" alt="示例展示图" fetchpriority="high">
         <div class="ph-overlay"></div>
         <div class="scanline"></div>
         <div class="ph-caption">DEMO PREVIEW · 示例图</div>
@@ -688,6 +905,19 @@ model-viewer.hidden{ display: none; }
           <span id="procText">AI 解析中…</span>
           <span class="proc-elapsed" id="procElapsed"></span>
         </div>
+        <div class="proc-bar" id="procBar"><span class="proc-fill" id="procFill"></span></div>
+      </div>
+
+      <!-- 结果下载 -->
+      <div class="dl-bar" id="dlBar">
+        <button class="dl-btn" id="dlImage" type="button" title="下载换装结果图">
+          <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"></path><path d="M7 11l5 5 5-5"></path><path d="M4 21h16"></path></svg>
+          下载图片
+        </button>
+        <button class="dl-btn" id="dlModel" type="button" title="下载 3D 模型（.glb）">
+          <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l9 5v10l-9 5-9-5V7z"></path><path d="M12 12l9-5"></path><path d="M12 12v10"></path><path d="M12 12L3 7"></path></svg>
+          下载 3D 模型
+        </button>
       </div>
 
     </div>
@@ -741,12 +971,148 @@ const state = {
   threeD: false,
   threeDLoading: false,
   resultImageUrl: null,
+  modelUrl: null,
+  modelBlob: null,
   typingToken: 0
 };
 
 const $ = (sel) => document.querySelector(sel);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const setStatus = (text) => { $('#status').textContent = text; };
+
+/* =========================================================
+   交互锁定：生成期间禁用所有会触发新请求的控件
+   —— 避免重复点击造成重复计费
+========================================================= */
+function syncControls() {
+  const busy = state.busy || state.threeDLoading;
+
+  ['#presetCyber', '#presetGufeng'].forEach((sel) => {
+    const el = $(sel);
+    if (el) el.disabled = busy;
+  });
+
+  const btnTry = $('#btnTry');
+  if (btnTry) btnTry.disabled = busy;
+
+  const input = $('#promptInput');
+  if (input) input.disabled = busy;
+
+  const box = $('#boxPerson');
+  if (box) box.classList.toggle('locked', busy);
+
+  document.body.classList.toggle('is-busy', busy);
+
+  // 3D 按钮：没有换装结果或正在生成时都不可用
+  const b360 = $('#btn360');
+  if (b360) b360.disabled = busy || !state.tried;
+}
+
+/* =========================================================
+   结果下载
+========================================================= */
+function stamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+function showDl(which, on) {
+  const el = $(which);
+  if (el) el.classList.toggle('show', Boolean(on));
+}
+
+/**
+ * 跨域链接直接用 <a download> 会被浏览器忽略，所以先 fetch 成 blob 再触发下载。
+ * Tripo 的模型链接只有 5 分钟有效，因此生成成功后会提前把 blob 缓存下来。
+ */
+async function saveBlobOrOpen(blob, filename, fallbackUrl) {
+  if (blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    setStatus(`已开始下载：${filename}`);
+    return;
+  }
+  if (fallbackUrl) {
+    window.open(fallbackUrl, '_blank', 'noopener');
+    setStatus('下载受限，已在新标签打开链接（可右键另存为）');
+  }
+}
+
+async function fetchAsBlob(url) {
+  const resp = await fetch(url, { mode: 'cors' });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return resp.blob();
+}
+
+async function downloadImage() {
+  if (!state.resultImageUrl) return;
+  const btn = $('#dlImage');
+  btn.disabled = true;
+  setStatus('正在准备图片…');
+  try {
+    const blob = await fetchAsBlob(state.resultImageUrl);
+    const ext = (blob.type || '').includes('png') ? 'png' : 'jpg';
+    await saveBlobOrOpen(blob, `次元造物-换装-${stamp()}.${ext}`, state.resultImageUrl);
+  } catch (err) {
+    await saveBlobOrOpen(null, null, state.resultImageUrl);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function downloadModel() {
+  if (!state.modelBlob && !state.modelUrl) return;
+  const btn = $('#dlModel');
+  btn.disabled = true;
+  setStatus('正在准备 3D 模型…');
+  try {
+    const blob = state.modelBlob || await fetchAsBlob(state.modelUrl);
+    state.modelBlob = blob;
+    await saveBlobOrOpen(blob, `次元造物-3D模型-${stamp()}.glb`, state.modelUrl);
+  } catch (err) {
+    await saveBlobOrOpen(null, null, state.modelUrl);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* =========================================================
+   进度条
+========================================================= */
+function setProcBar(percent) {
+  const bar = $('#procBar');
+  const fill = $('#procFill');
+  if (!bar || !fill) return;
+  if (percent === null) {
+    bar.classList.remove('on');
+    fill.classList.remove('determinate');
+    fill.style.width = '';
+    return;
+  }
+  bar.classList.add('on');
+  fill.classList.add('determinate');
+  fill.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+}
+
+function setTopProgress(percent) {
+  const wrap = $('#topProgress');
+  const fill = $('#topProgressFill');
+  if (!wrap || !fill) return;
+  if (percent === null) {
+    wrap.classList.remove('on');
+    fill.style.width = '0%';
+    return;
+  }
+  wrap.classList.add('on');
+  fill.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+}
 
 /* =========================================================
    请求路径处理
@@ -962,11 +1328,24 @@ async function doTryOn() {
   }
 
   state.busy = true;
-  btn.disabled = true;
+  syncControls();
   btnText.textContent = 'AI 换装中…';
   badge.textContent = 'RENDERING';
   badge.classList.add('live');
   processing.classList.add('active');
+
+  // 新一次换装开始：先把旧的 3D 结果和下载入口收起来
+  showDl('#dlModel', false);
+  showDl('#dlImage', false);
+  state.modelUrl = null;
+  state.modelBlob = null;
+  state.modelIsReal = false;
+  setTopProgress(null);
+
+  const procBarEl = $('#procBar');
+  const procFillEl = $('#procFill');
+  if (procBarEl) procBarEl.classList.add('on');
+  if (procFillEl) { procFillEl.classList.remove('determinate'); procFillEl.style.width = ''; }
 
   const stageTimer = startStageLoop();
   const elapsedTimer = startElapsedTimer();
@@ -1004,6 +1383,7 @@ async function doTryOn() {
     state.threeD = false;
 
     showResult(data.image_url);
+    showDl('#dlImage', true);
 
     badge.textContent = 'AI RESULT';
     badge.classList.add('live');
@@ -1027,13 +1407,21 @@ async function doTryOn() {
     clearInterval(elapsedTimer);
     $('#procElapsed').textContent = '';
     processing.classList.remove('active');
-    btn.disabled = false;
+    if (procBarEl) procBarEl.classList.remove('on');
     btnText.textContent = state.tried ? '重新换装' : '开始换装';
     state.busy = false;
+    syncControls();
   }
 }
 
 $('#btnTry').addEventListener('click', () => doTryOn());
+
+/* 下载按钮 */
+$('#dlImage').addEventListener('click', downloadImage);
+$('#dlModel').addEventListener('click', downloadModel);
+
+/* 初始同步一次控件状态 */
+syncControls();
 
 /* =========================================================
    一键体验
@@ -1075,8 +1463,8 @@ $('#presetGufeng').addEventListener('click', () => runPreset('gufeng'));
 ========================================================= */
 function revealThreeDButton() {
   const btn = $('#btn360');
-  btn.disabled = false;
   btn.querySelector('.btn-text').textContent = '生成 360° 3D 展示';
+  syncControls();
 }
 
 let mvSlowTimer = null;
@@ -1084,6 +1472,14 @@ let progressText = '';
 
 $('#btn360').addEventListener('click', async () => {
   if (state.threeDLoading) return;
+
+  // 已经拿到过真实模型时，再点只是重新展示，不重复调用（避免白烧额度）
+  if (state.modelIsReal && state.modelUrl) {
+    loadModelIntoViewer(state.modelUrl);
+    setStatus('已重新载入 3D 模型 · 想换一版请先「重新换装」');
+    return;
+  }
+
   state.threeDLoading = true;
   progressText = '';
 
@@ -1096,6 +1492,8 @@ $('#btn360').addEventListener('click', async () => {
   badge.textContent = '3D BUILDING';
   badge.classList.add('live');
   setStatus('正在提交 3D 生成任务…');
+  syncControls();
+  setTopProgress(3);
 
   try {
     const createUrl = getApiUrl('/api/create3d');
@@ -1140,6 +1538,7 @@ $('#btn360').addEventListener('click', async () => {
 
       if (typeof checkData.progress === 'number') {
         progressText = `${checkData.progress}% ·`;
+        setTopProgress(checkData.progress);
       }
 
       if (status === 'SUCCEEDED' || status === 'success' || status === 'SUCCESS') {
@@ -1156,17 +1555,31 @@ $('#btn360').addEventListener('click', async () => {
     if (!modelUrl) throw new Error('3D 任务超时');
 
     state.threeD = true;
+    state.modelUrl = modelUrl;
+    state.modelBlob = null;
+    state.modelIsReal = true;
+    setTopProgress(100);
+
+    // Tripo 链接只有 5 分钟有效，成功后立刻把文件缓存到内存，下载时就不怕过期
+    fetchAsBlob(modelUrl)
+      .then((blob) => { state.modelBlob = blob; showDl('#dlModel', true); })
+      .catch(() => { showDl('#dlModel', true); });
+
     loadModelIntoViewer(modelUrl, previewUrl);
     setStatus('3D 模型加载中…');
   } catch (err) {
     console.warn('[3d] fallback to demo model:', err);
     state.threeD = true;
+    state.modelUrl = DEMO_MODEL_URL;
+    state.modelBlob = null;
+    state.modelIsReal = false;
     loadModelIntoViewer(DEMO_MODEL_URL);
     setStatus(`3D 生成未成功（${err.message}）· 已加载演示模型`);
   } finally {
     state.threeDLoading = false;
-    btn.disabled = false;
+    setTopProgress(null);
     btnText.textContent = state.threeD ? '360° 展示已开启' : '生成 360° 3D 展示';
+    syncControls();
   }
 });
 
