@@ -955,25 +955,6 @@ body.is-first .preset-btn:not(:disabled):hover{
 }
 
 /* ================= 一次试三套 ================= */
-.triple-btn{
-  width: 100%;
-  margin-top: 9px;
-  padding: 10px 12px;
-  font-family: inherit;
-  font-size: 11.5px;
-  letter-spacing: .08em;
-  color: var(--ink);
-  background: var(--raised);
-  border: 1px solid var(--line-3);
-  border-radius: var(--r);
-  cursor: pointer;
-  box-shadow: 0 1px 0 rgba(255,255,255,.9);
-  transition: border-color .2s, background .2s, transform .16s;
-}
-.triple-btn:hover:not(:disabled){ border-color: var(--seal-line); background: #FFFEFB; }
-.triple-btn:active:not(:disabled){ transform: translateY(1px); }
-.triple-btn:disabled{ opacity: .4; cursor: not-allowed; }
-
 .triple{
   position: absolute; inset: 0;
   z-index: 4;
@@ -1071,7 +1052,6 @@ body.is-first .preset-btn:not(:disabled):hover{
   .triple-grid{ gap: 8px; }
   .triple{ padding: 12px; }
   .tcard-foot{ font-size: 8px; padding: 7px 8px; }
-  .triple-btn{ font-size: 11px; }
 }
 
 /* ================= 对比度强化 ================= */
@@ -1279,7 +1259,6 @@ body.is-busy .desc-input{
           </div>
           <img class="preview" id="prevPerson" alt="角色底图预览">
         </div>
-        <button class="triple-btn" id="btnTriple" type="button">用这张图试三套</button>
         <p class="preset-note">内置示例角色，也可换成自己的立绘。</p>
       </div>
     </div>
@@ -1310,8 +1289,8 @@ body.is-busy .desc-input{
     </div>
 
     <div class="rail-note">
-      <div class="rn-row"><span>输出</span>2D 1024px · 3D 全精度</div>
-      <div class="rn-row"><span>预计</span>换装 10s · 3D 约 2 分钟</div>
+      <div class="rn-row"><span>输出</span>换装 3 张 · 3D 全精度</div>
+      <div class="rn-row"><span>预计</span>换装 30s · 3D 约 2 分钟</div>
     </div>
 
   </aside>
@@ -1335,8 +1314,8 @@ body.is-busy .desc-input{
           <div class="empty-cross" aria-hidden="true"></div>
           <div class="hero">
             <span class="hero-eyebrow">无需上传 · 约 30 秒</span>
-            <p class="hero-title">一次给三套造型</p>
-            <p class="hero-desc">用内置角色同时生成古风、赛博、礼服三种造型，挑一套再变成 3D。</p>
+            <p class="hero-title">一次给三种可能</p>
+            <p class="hero-desc">AI 一次未必猜准你的想法。同一段描述给你三张不同的可能，挑一张最接近的，再变成 3D。</p>
             <button class="hero-cta" id="heroTry" type="button">
               <span>一键体验</span>
               <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"></path><path d="M12.5 5.5L19 12l-6.5 6.5"></path></svg>
@@ -1351,7 +1330,7 @@ body.is-busy .desc-input{
 
       <div class="triple hidden" id="triple">
         <div class="triple-head">
-          <span>三套造型</span>
+          <span>三种可能</span>
           <span class="triple-sub">Pick one</span>
           <button class="triple-close" id="tripleClose" type="button">返回</button>
         </div>
@@ -1477,7 +1456,7 @@ function syncHierarchy() {
 function syncControls() {
   const busy = state.busy || state.threeDLoading;
 
-  ['#presetOne', '#btnTriple'].forEach((sel) => {
+  ['#presetOne'].forEach((sel) => {
     const el = $(sel);
     if (el) el.disabled = busy;
   });
@@ -1844,110 +1823,19 @@ function showResult(imageUrl) {
 async function doTryOn() {
   if (state.busy) return;
 
-  const btn = $('#btnTry');
-  const btnText = btn.querySelector('.btn-text');
-  const processing = $('#processing');
-  const badge = $('#stageBadge');
-
   if (!state.personFile && !state.personDataUrl) {
-    setStatus('请先上传角色底图，或点击上方一键体验');
+    setStatus('请先上传角色底图，或点上方「一键体验」');
     return;
   }
+
   const promptText = ($('#promptInput').value || '').trim();
   if (!promptText) {
     setStatus('请先填写换装描述');
     return;
   }
 
-  state.busy = true;
-  syncControls();
-  btnText.textContent = 'AI 换装中…';
-  badge.textContent = 'RENDERING';
-  badge.classList.add('live');
-  processing.classList.add('active');
-
-  // 新一次换装开始：先把旧的 3D 结果和下载入口收起来
-  showDl('#dlModel', false);
-  showDl('#dlImage', false);
-  state.modelUrl = null;
-  state.modelBlob = null;
-  state.modelIsReal = false;
-  setTopProgress(null);
-
-  const viewerEl = $('#viewer');
-  if (viewerEl) viewerEl.classList.add('is-processing');
-
-  const procBarEl = $('#procBar');
-  const procFillEl = $('#procFill');
-  if (procBarEl) procBarEl.classList.add('on');
-  if (procFillEl) { procFillEl.classList.remove('determinate'); procFillEl.style.width = ''; }
-
-  const stageTimer = startStageLoop();
-  const elapsedTimer = startElapsedTimer();
-
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), TRYON_TIMEOUT_MS);
-
-  try {
-    const personData = await getPersonDataUrl();
-    if (!personData) throw new Error('角色底图读取失败');
-
-    const apiUrl = getApiUrl('/api/tryon');
-    const resp = await fetch(apiUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        image_base64: personData,
-        prompt: promptText
-      }),
-      signal: controller.signal
-    });
-
-    let data = null;
-    try { data = await resp.json(); } catch (_) {}
-
-    if (!resp.ok || !data || !data.success) {
-      const msg = (data && (data.error || data.message)) || `HTTP ${resp.status}`;
-      throw new Error(msg);
-    }
-
-    if (!data.image_url) throw new Error('后端未返回 image_url');
-
-    state.tried = true;
-    state.resultImageUrl = data.image_url;
-    state.threeD = false;
-
-    showResult(data.image_url);
-    showDl('#dlImage', true);
-
-    badge.textContent = 'AI RESULT';
-    badge.classList.add('live');
-    setStatus('换装完成 · 可点击「生成 360° 3D 展示」');
-    revealThreeDButton();
-    renderAIComment(promptText);
-  } catch (err) {
-    console.error('[tryon] failed:', err);
-    if (err.name === 'AbortError') {
-      setStatus('换装超时（已等待约 90 秒），请稍后重试');
-    } else if (err.message.includes('Failed to parse URL') || err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
-      setStatus(`请求失败：连不上后端 ${API_BASE || location.origin}，请确认服务已启动且端口一致`);
-    } else {
-      setStatus('换装失败：' + err.message);
-    }
-    badge.textContent = 'ERROR';
-    badge.classList.remove('live');
-  } finally {
-    clearTimeout(timeoutId);
-    clearInterval(stageTimer);
-    clearInterval(elapsedTimer);
-    $('#procElapsed').textContent = '';
-    processing.classList.remove('active');
-    if (procBarEl) procBarEl.classList.remove('on');
-    if (viewerEl) viewerEl.classList.remove('is-processing');
-    btnText.textContent = state.tried ? '重新换装' : '开始换装';
-    state.busy = false;
-    syncControls();
-  }
+  // 同一段描述交给 AI 出三种可能，让用户挑，而不是一次定生死
+  await runTriple(promptText);
 }
 
 $('#btnTry').addEventListener('click', () => doTryOn());
@@ -1962,11 +1850,7 @@ syncControls();
 /* =========================================================
    一次试三套：并行出三种造型，选定一套再做 3D（只花一份 3D 积分）
 ========================================================= */
-const TRIPLE_PRESETS = [
-  { tag: '古风', prompt: '穿着飘逸的古风汉服，发髻与流苏点缀，织金暗纹' },
-  { tag: '赛博', prompt: '穿着赛博朋克机能外套，霓虹光带与金属扣件' },
-  { tag: '礼服', prompt: '穿着深色丝绒长礼服，金属肩饰与垂坠裙摆' },
-];
+const VARIANT_LABELS = ['方案 1', '方案 2', '方案 3'];
 
 function showTriple(on) {
   const box = $('#triple');
@@ -1974,14 +1858,15 @@ function showTriple(on) {
   box.classList.toggle('hidden', !on);
 }
 
+/** 先建三张骨架，出图后逐张填，避免全白等 30 秒 */
 function buildTripleCards() {
   const grid = $('#tripleGrid');
   if (!grid) return [];
-  grid.innerHTML = TRIPLE_PRESETS.map(
-    (p, i) => `
+  grid.innerHTML = VARIANT_LABELS.map(
+    (label, i) => `
     <div class="tcard" data-i="${i}">
       <div class="tcard-img"></div>
-      <div class="tcard-foot"><span>${p.tag}</span><span class="tcard-pick">生成中</span></div>
+      <div class="tcard-foot"><span>${label}</span><span class="tcard-pick">生成中</span></div>
     </div>`,
   ).join('');
   return Array.from(grid.querySelectorAll('.tcard'));
@@ -1990,10 +1875,9 @@ function buildTripleCards() {
 function fillTripleCard(cards, i, url) {
   const card = cards[i];
   if (!card) return;
-  const holder = card.querySelector('.tcard-img');
-  holder.innerHTML = `<img src="${url}" alt="">`;
+  card.querySelector('.tcard-img').innerHTML = `<img src="${url}" alt="">`;
   card.classList.add('ready');
-  card.querySelector('.tcard-pick').textContent = '选这套 →';
+  card.querySelector('.tcard-pick').textContent = '选这张 →';
   card.addEventListener('click', () => chooseTriple(url));
 }
 
@@ -2004,7 +1888,7 @@ function failTripleCard(cards, i) {
   card.querySelector('.tcard-pick').textContent = '失败';
 }
 
-/** 选定一版：进入主展示，后续 3D 都用这一版 */
+/** 选定一张：进入主展示，后续四视图 + 3D 都用这一张 */
 function chooseTriple(url) {
   state.tried = true;
   state.resultImageUrl = url;
@@ -2018,14 +1902,20 @@ function chooseTriple(url) {
   showDl('#dlImage', true);
   showDl('#dlModel', false);
   revealThreeDButton();
-  renderAIComment('三套造型对比');
-  setStatus('已选定这一版 · 可点「生成 360° 3D 展示」，只花一次 3D 额度');
+
+  const promptText = ($('#promptInput').value || '').trim();
+  renderAIComment(promptText || '换装');
+  setStatus('已选定这张 · 可点「生成 360° 3D 展示」，只花一次 3D 额度');
 }
 
-async function runTriple() {
+/**
+ * 同一段描述跑三次，给出三种可能让用户挑（抽卡）。
+ * 风格由用户的描述决定，这里只负责多给几个候选，不擅自换风格。
+ */
+async function runTriple(promptText) {
   if (state.busy) return;
 
-  // 没有底图时自动载入内置示例，避免出现点了报错的按钮
+  // 没有底图时自动载入内置示例，避免出现点了就报错的按钮
   if (!state.personFile && !state.personDataUrl) {
     setStatus('正在载入内置示例角色…');
     try {
@@ -2047,23 +1937,42 @@ async function runTriple() {
     return;
   }
 
+  const text = String(promptText || '').trim();
+  if (!text) {
+    setStatus('请先填写换装描述');
+    return;
+  }
+
   state.busy = true;
   syncControls();
+
+  const btnText = $('#btnTry').querySelector('.btn-text');
+  if (btnText) btnText.textContent = 'AI 出图中…';
+
   const badge = $('#stageBadge');
-  badge.textContent = '3 Variants';
+  badge.textContent = '3 Candidates';
   badge.classList.add('live');
+
+  // 新一批开始：清掉上一轮的 3D 与下载入口
+  showDl('#dlModel', false);
+  showDl('#dlImage', false);
+  state.modelUrl = null;
+  state.modelBlob = null;
+  state.modelIsReal = false;
+  setTopProgress(null);
+
   showTriple(true);
   const cards = buildTripleCards();
-  setStatus('一次生成三套造型…');
+  setStatus('同一描述生成三种可能…');
 
   let done = 0;
   const results = await Promise.all(
-    TRIPLE_PRESETS.map(async (p, i) => {
+    VARIANT_LABELS.map(async (_label, i) => {
       try {
         const resp = await fetch(getApiUrl('/api/tryon'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ image_base64: personData, prompt: p.prompt }),
+          body: JSON.stringify({ image_base64: personData, prompt: text }),
         });
         const data = await resp.json();
         if (!resp.ok || !data || !data.success || !data.image_url) {
@@ -2071,11 +1980,11 @@ async function runTriple() {
         }
         fillTripleCard(cards, i, data.image_url);
         done += 1;
-        setStatus(`三套造型生成中… ${done}/3`);
+        setStatus(`已出 ${done}/3 张 · 同一描述的不同可能`);
         return data.image_url;
       } catch (err) {
         failTripleCard(cards, i);
-        console.warn('[triple] 第', i + 1, '套失败：', err.message);
+        console.warn('[variants] 第', i + 1, '张失败：', err.message);
         return null;
       }
     }),
@@ -2083,19 +1992,18 @@ async function runTriple() {
 
   state.busy = false;
   syncControls();
+  if (btnText) btnText.textContent = state.tried ? '重新换装' : '开始换装';
 
   const okCount = results.filter(Boolean).length;
   if (!okCount) {
     showTriple(false);
-    setStatus('三套造型都没生成成功，请重试');
     badge.textContent = 'Error';
     badge.classList.remove('live');
+    setStatus('三张都没出来，检查网络或稍后重试');
     return;
   }
-  setStatus(`已生成 ${okCount} 套造型 · 点一张选定，再生成 3D`);
+  setStatus(`已出 ${okCount} 张 · 选一张最接近你想要的，再做 3D`);
 }
-
-$('#btnTriple').addEventListener('click', runTriple);
 $('#tripleClose').addEventListener('click', () => {
   if (state.busy) return;
   showTriple(false);
@@ -2128,7 +2036,7 @@ async function runPreset(kind) {
     state.personDataUrl = base64Data;
     syncHierarchy();
     // 进来的人最想看的是「同一角色能有多少种样子」，所以直接给三套
-    await runTriple();
+    await runTriple(promptText);
   } catch (e) {
     console.error('预设图拉取失败', e);
     setStatus('⚠ 预设图转 Base64 失败，请检查网络或图片链接是否允许跨域(CORS)。');
