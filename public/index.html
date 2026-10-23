@@ -18,11 +18,13 @@
   --paper:      #F3EFE6;
   --paper-2:    #FAF8F2;
   --paper-3:    #EAE4D8;
+  --raised:     #FFFDF8;
+  --well:       #ECE5D8;
 
   /* 墨 */
   --ink:        #1A1815;
   --ink-2:      #57524A;
-  --ink-3:      #8B8577;
+  --ink-3:      #6E6759;
 
   /* 线 */
   --line:       rgba(26,24,21,.13);
@@ -899,6 +901,98 @@ body.is-first .preset-btn:not(:disabled) .preset-sub{
 body.is-first .preset-btn:not(:disabled):hover{
   background: #2C2823;
   border-color: #2C2823;
+}
+
+/* ================= 对比度强化 ================= */
+/* 三层表面：纸底 → 更亮的舞台 → 凹陷的画框；按钮与输入一律用浮起面 */
+
+.stage{ background: #FCFBF7; }
+
+.viewer{
+  background:
+    radial-gradient(115% 90% at 50% 0%, #F3EEE4, var(--well) 100%);
+  border: 1px solid var(--line-2);
+  box-shadow:
+    inset 0 1px 3px rgba(60,48,32,.10),
+    inset 0 -1px 0 rgba(255,255,255,.6);
+}
+
+/* 输入与上传：白面 + 实边，和纸底拉开 */
+.desc-input,
+.upload-box{
+  background: var(--raised);
+  border: 1px solid var(--line-3);
+  box-shadow: 0 1px 0 rgba(255,255,255,.9);
+}
+.upload-box{ border-style: dashed; }
+.desc-input:focus,
+.upload-box:hover{
+  border-color: var(--seal-line);
+  box-shadow: 0 1px 0 rgba(255,255,255,.9), 0 0 0 3px rgba(166,61,42,.07);
+}
+
+/* 次要按钮：从描边改为浮起实心，一眼能看出可以点 */
+.btn-secondary{
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--line-3);
+  box-shadow: 0 1px 0 rgba(255,255,255,.9);
+}
+.btn-secondary:hover:not(:disabled){
+  color: var(--ink);
+  background: #FFFEFB;
+  border-color: var(--ink-3);
+  box-shadow: 0 2px 6px -4px rgba(60,48,32,.5);
+}
+.btn-secondary:disabled{
+  color: var(--ink-3);
+  background: var(--paper-3);
+  border-style: dashed;
+  border-color: var(--line-2);
+  box-shadow: none;
+}
+
+/* 主按钮禁用态也保留块感，只是明显熄灭 */
+.btn-primary:disabled{
+  color: var(--ink-3);
+  background: var(--paper-3);
+  border: 1px dashed var(--line-2);
+}
+
+/* 提示文字：从浅灰提到正文灰，字号加大半档 */
+.hint,
+.preset-note{
+  color: var(--ink-2);
+  font-size: 11px;
+}
+.step-hint{ color: var(--ink-2); }
+.badge{ color: var(--ink-2); border-color: var(--line-3); }
+.ai-empty{ color: var(--ink-2); }
+
+.rail-note{
+  color: var(--ink-2);
+  font-size: 9.5px;
+  padding: 15px 0 26px;
+}
+.rail-note span{ color: var(--seal); font-weight: 500; }
+
+/* 状态栏：加底色与实线，读起来像一条状态条而不是装饰线 */
+.statusbar{
+  background: var(--paper-3);
+  border-top: 1px solid var(--line-2);
+  color: var(--ink-2);
+  font-size: 10px;
+}
+
+/* 画框内的说明文字同步提亮 */
+.hero-desc{ color: var(--ink-2); }
+.ph-caption{ color: var(--ink-3); }
+.empty-line2{ color: var(--ink-2); }
+
+/* 一键体验（未载入底图时）保持墨块；载入后退回深纸块但加实边 */
+body:not(.is-first) .preset-btn:not(:disabled){
+  background: #E3DAC6;
+  border-color: var(--ink-3);
 }
 
 /* ================= 忙碌降权 ================= */
