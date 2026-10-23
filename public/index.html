@@ -591,17 +591,37 @@ model-viewer.hidden{ display: none; }
 
 /* ================= 加载态 ================= */
 .mv-loading{
-  position: absolute; inset: 0;
-  z-index: 5;
-  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 16px;
-  background: rgba(250,248,242,.9);
+  position: absolute;
+  left: 18px; bottom: 18px;
+  z-index: 7;
+  display: flex; flex-direction: column; gap: 7px;
+  min-width: 168px;
+  padding: 10px 13px;
+  background: rgba(255,253,248,.94);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  box-shadow: 0 10px 24px -18px rgba(60,48,32,.9);
   font-family: var(--mono);
   font-size: 9.5px;
-  letter-spacing: .16em;
+  letter-spacing: .12em;
   text-transform: uppercase;
   color: var(--ink-2);
+  pointer-events: none;
 }
 .mv-loading.hidden{ display: none; }
+.mv-text{ white-space: nowrap; }
+.mv-bar{
+  display: block;
+  width: 100%; height: 2px;
+  background: rgba(26,24,21,.12);
+  overflow: hidden;
+}
+.mv-bar i{
+  display: block;
+  width: 0%; height: 100%;
+  background: var(--seal);
+  transition: width .3s cubic-bezier(.16,1,.3,1);
+}
 
 .sk-box{
   position: relative;
@@ -1214,8 +1234,8 @@ body.is-busy .desc-input{
       </model-viewer>
 
       <div class="mv-loading hidden" id="mvLoading">
-        <div class="sk-box" aria-hidden="true"></div>
-        <span id="mvLoadingText">正在载入 3D 模型</span>
+        <span class="mv-text" id="mvLoadingText">正在构建 3D 模型</span>
+        <span class="mv-bar" aria-hidden="true"><i id="mvLoadingBar"></i></span>
       </div>
 
       <div class="processing" id="processing">
@@ -1447,6 +1467,23 @@ function setProcBar(percent) {
   bar.classList.add('on');
   fill.classList.add('determinate');
   fill.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+}
+
+/** 舞台左下角的轻量进度卡：不遮挡作品，只在角落报进度 */
+function setStageStatus(text, percent) {
+  const box = $('#mvLoading');
+  const label = $('#mvLoadingText');
+  const bar = $('#mvLoadingBar');
+  if (!box) return;
+  if (text === null) {
+    box.classList.add('hidden');
+    return;
+  }
+  box.classList.remove('hidden');
+  if (label) label.textContent = text;
+  if (bar && typeof percent === 'number') {
+    bar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+  }
 }
 
 function setTopProgress(percent) {
@@ -1859,6 +1896,7 @@ $('#btn360').addEventListener('click', async () => {
   setStatus('正在提交 3D 生成任务…');
   syncControls();
   setTopProgress(3);
+  setStageStatus('3D 构建中 0%', 0);
 
   try {
     const createUrl = getApiUrl('/api/create3d');
@@ -1904,6 +1942,7 @@ $('#btn360').addEventListener('click', async () => {
       if (typeof checkData.progress === 'number') {
         progressText = `${checkData.progress}% ·`;
         setTopProgress(checkData.progress);
+        setStageStatus(`3D 构建中 ${checkData.progress}%`, checkData.progress);
       }
 
       if (status === 'SUCCEEDED' || status === 'success' || status === 'SUCCESS') {
@@ -1978,15 +2017,16 @@ async function loadModelIntoViewer(url, previewUrl = null) {
 
   placeholder.classList.add('fade-out');
   setTimeout(() => placeholder.classList.add('hidden'), 460);
-  aiResult.classList.add('hidden');
 
   badge.textContent = '360° LIVE';
   badge.classList.add('live');
 
   const reveal = () => {
     clearTimeout(mvSlowTimer);
+    aiResult.classList.add('hidden');
     mv.classList.remove('hidden');
-    mvLoading.classList.add('hidden');
+    setStageStatus(null);
+    setTopProgress(null);
     setStatus('360° 展示已就绪 · 拖拽旋转 / 双指缩放');
   };
 
@@ -2001,13 +2041,12 @@ async function loadModelIntoViewer(url, previewUrl = null) {
   mv.classList.remove('hidden');
   mvLoading.classList.remove('hidden');
 
-  const tip = $('#mvLoadingText');
-  if (tip) tip.textContent = '正在载入 3D 模型…';
+  setStageStatus('正在载入 3D 模型 0%', 0);
 
   // model-viewer 会在下载过程中持续抛 progress，用它显示真实百分比
   mv.addEventListener('progress', (e) => {
     const p = Math.round((e.detail && e.detail.totalProgress ? e.detail.totalProgress : 0) * 100);
-    if (tip) tip.textContent = `正在载入 3D 模型 ${p}%`;
+    setStageStatus(`正在载入 3D 模型 ${p}%`, p);
   });
 
   mv.dataset.src = url;
