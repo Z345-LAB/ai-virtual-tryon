@@ -1263,7 +1263,7 @@ body.is-busy .desc-input{
           <span class="preset-mark" aria-hidden="true"></span>
           <span class="preset-text">
             <span class="preset-label">一键体验</span>
-            <span class="preset-sub">无需上传图片</span>
+            <span class="preset-sub">无需上传 · 一次出三套</span>
           </span>
           <span class="preset-tag">古风</span>
         </button>
@@ -1279,8 +1279,8 @@ body.is-busy .desc-input{
           </div>
           <img class="preview" id="prevPerson" alt="角色底图预览">
         </div>
-        <p class="preset-note">内置示例角色 + 古风设定，点一下跑通全流程。</p>
-        <button class="triple-btn" id="btnTriple" type="button">一次试三套造型</button>
+        <button class="triple-btn" id="btnTriple" type="button">用这张图试三套</button>
+        <p class="preset-note">内置示例角色，也可换成自己的立绘。</p>
       </div>
     </div>
 
@@ -1334,9 +1334,9 @@ body.is-busy .desc-input{
         <div class="empty">
           <div class="empty-cross" aria-hidden="true"></div>
           <div class="hero">
-            <span class="hero-eyebrow">无需上传 · 约 10 秒</span>
-            <p class="hero-title">先看看它能做什么</p>
-            <p class="hero-desc">用内置的古风角色跑一遍完整流程：换装、再变 3D。不满意再换成你自己的图。</p>
+            <span class="hero-eyebrow">无需上传 · 约 30 秒</span>
+            <p class="hero-title">一次给三套造型</p>
+            <p class="hero-desc">用内置角色同时生成古风、赛博、礼服三种造型，挑一套再变成 3D。</p>
             <button class="hero-cta" id="heroTry" type="button">
               <span>一键体验</span>
               <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"></path><path d="M12.5 5.5L19 12l-6.5 6.5"></path></svg>
@@ -2024,9 +2024,21 @@ function chooseTriple(url) {
 
 async function runTriple() {
   if (state.busy) return;
+
+  // 没有底图时自动载入内置示例，避免出现点了报错的按钮
   if (!state.personFile && !state.personDataUrl) {
-    setStatus('请先上传角色底图，或点「一键体验」载入示例');
-    return;
+    setStatus('正在载入内置示例角色…');
+    try {
+      const presetData = await urlToBase64(PRESET_IMG_URL);
+      state.personFile = null;
+      state.personDataUrl = presetData;
+      boxPerson.classList.add('has-image');
+      prevPerson.src = PRESET_IMG_URL;
+      syncHierarchy();
+    } catch (err) {
+      setStatus('示例角色载入失败，请上传自己的底图');
+      return;
+    }
   }
 
   const personData = await getPersonDataUrl();
@@ -2114,7 +2126,9 @@ async function runPreset(kind) {
     const base64Data = await urlToBase64(PRESET_IMG_URL);
     state.personFile = null;
     state.personDataUrl = base64Data;
-    await doTryOn();
+    syncHierarchy();
+    // 进来的人最想看的是「同一角色能有多少种样子」，所以直接给三套
+    await runTriple();
   } catch (e) {
     console.error('预设图拉取失败', e);
     setStatus('⚠ 预设图转 Base64 失败，请检查网络或图片链接是否允许跨域(CORS)。');
