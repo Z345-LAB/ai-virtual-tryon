@@ -19,6 +19,7 @@ export default async function onRequest({ request, env }) {
     progress: result.progress ?? null,
     model_url: result.modelUrl || null,
     preview_url: result.previewUrl || null,
+    views: result.views || null,
     demo: Boolean(result.demo),
     message: result.message || null,
   });

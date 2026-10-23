@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { generateOutfit, getConfig, AppError } from './cloud-functions/_lib/wan.js';
-import { createModelTask, getModelTask } from './cloud-functions/_lib/three.js';
+import { createModelTask, createModelFromMultiview, createMultiviewTask, getModelTask } from './cloud-functions/_lib/three.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
@@ -61,11 +61,30 @@ app.post(['/api/tryon', '/functions/tryon'], async (req, res) => {
 });
 
 /* ---------- 3D（Tripo 图生 3D，失败自动降级演示模型） ---------- */
-app.post(['/api/create3d', '/functions/create3d'], async (req, res) => {
+/* ---------- 多视图（第 1 步）---------- */
+app.post('/api/multiview', async (req, res) => {
+  const enabled = String(process.env.TRIPO_MULTIVIEW || 'on').toLowerCase() !== 'off';
+  if (!enabled) return res.json({ success: false, disabled: true, error: '多视图链路已关闭' });
+
   const imageUrl = String((req.body && req.body.image_url) || '').trim();
   if (!imageUrl) return res.status(400).json({ success: false, error: '缺少 image_url' });
 
-  const result = await createModelTask({ imageUrl });
+  const result = await createMultiviewTask({ imageUrl });
+  console.log(`[多视图] ${result.ok ? '任务 ' + result.taskId : '失败：' + result.reason}`);
+  if (!result.ok) return res.json({ success: false, error: result.reason });
+  res.json({ success: true, task_id: result.taskId });
+});
+
+app.post(['/api/create3d', '/functions/create3d'], async (req, res) => {
+  const imageUrl = String((req.body && req.body.image_url) || '').trim();
+  const multiviewTaskId = String((req.body && req.body.multiview_task_id) || '').trim();
+  if (!imageUrl && !multiviewTaskId) {
+    return res.status(400).json({ success: false, error: '缺少 image_url 或 multiview_task_id' });
+  }
+
+  const result = multiviewTaskId
+    ? await createModelFromMultiview({ multiviewTaskId })
+    : await createModelTask({ imageUrl });
   console.log(`[3D] 任务 ${result.taskId}${result.demo ? `（降级：${result.reason}）` : ''}`);
   res.json({
     success: true,

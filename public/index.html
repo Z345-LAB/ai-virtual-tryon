@@ -595,7 +595,7 @@ model-viewer.hidden{ display: none; }
   left: 18px; bottom: 18px;
   z-index: 7;
   display: flex; flex-direction: column; gap: 7px;
-  min-width: 168px;
+  min-width: 176px;
   padding: 10px 13px;
   background: rgba(255,253,248,.94);
   border: 1px solid var(--line-2);
@@ -610,6 +610,16 @@ model-viewer.hidden{ display: none; }
 }
 .mv-loading.hidden{ display: none; }
 .mv-text{ white-space: nowrap; }
+.mv-views{ display: flex; gap: 4px; }
+.mv-views:empty{ display: none; }
+.mv-views img{
+  width: 34px; height: 34px;
+  object-fit: cover;
+  border: 1px solid var(--line-2);
+  border-radius: 2px;
+  background: var(--paper-3);
+  display: block;
+}
 .mv-bar{
   display: block;
   width: 100%; height: 2px;
@@ -1180,7 +1190,7 @@ body.is-busy .desc-input{
 
     <div class="rail-note">
       <div class="rn-row"><span>输出</span>2D 1024px · 3D 全精度</div>
-      <div class="rn-row"><span>预计</span>换装 10s · 3D 90s</div>
+      <div class="rn-row"><span>预计</span>换装 10s · 3D 约 2 分钟</div>
     </div>
 
   </aside>
@@ -1236,6 +1246,7 @@ body.is-busy .desc-input{
       <div class="mv-loading hidden" id="mvLoading">
         <span class="mv-text" id="mvLoadingText">正在构建 3D 模型</span>
         <span class="mv-bar" aria-hidden="true"><i id="mvLoadingBar"></i></span>
+        <span class="mv-views" id="mvViews"></span>
       </div>
 
       <div class="processing" id="processing">
@@ -1872,6 +1883,94 @@ function revealThreeDButton() {
 let mvSlowTimer = null;
 let progressText = '';
 
+/** 把四视图缩略图挂到进度卡上 */
+function setStageViews(views) {
+  const box = $('#mvViews');
+  if (!box) return;
+  const list = ['front', 'left', 'back', 'right']
+    .map((k) => views && views[k])
+    .filter(Boolean);
+  if (!list.length) {
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = list
+    .map((url) => `<img src="${url}" alt="" loading="lazy">`)
+    .join('');
+}
+
+/**
+ * 创建 3D 任务。
+ * 优先走「一张图 → 四视图 → 重建」，失败或关闭时回退到单图重建。
+ * 返回 { taskId, mode: 'multiview' | 'single' | 'demo', message }
+ */
+async function create3DTaskId() {
+  const postJson = (path, payload) =>
+    fetch(getApiUrl(path), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+  // ---- 先试多视图链路 ----
+  try {
+    const mvResp = await postJson('/api/multiview', { image_url: state.resultImageUrl });
+    const mv = await mvResp.json();
+
+    if (mv && mv.success && mv.task_id) {
+      setStatus('正在把这张图扩成四视图…');
+      setStageStatus('生成四视图 0%', 0);
+
+      let views = null;
+      for (let i = 0; i < 40; i++) {
+        await wait(3000);
+        let r;
+        try {
+          r = await fetch(getApiUrl(`/api/check3d?task_id=${encodeURIComponent(mv.task_id)}`));
+        } catch (_) {
+          continue;
+        }
+        if (!r.ok) continue;
+
+        const d = await r.json();
+        const st = d.status || '';
+        if (typeof d.progress === 'number') {
+          setTopProgress(d.progress);
+          setStageStatus(`生成四视图 ${d.progress}%`, d.progress);
+        }
+        if (st === 'SUCCEEDED' || st === 'success' || st === 'SUCCESS') {
+          views = d.views || null;
+          break;
+        }
+        if (st === 'FAILED' || st === 'failed') break;
+      }
+
+      if (views && views.front) {
+        setStageViews(views);
+        setStatus('四视图已就绪，开始按四视图重建…');
+        const mResp = await postJson('/api/create3d', { multiview_task_id: mv.task_id });
+        const m = await mResp.json();
+        if (m && m.task_id) {
+          return { taskId: m.task_id, mode: m.demo ? 'demo' : 'multiview', message: m.message };
+        }
+      }
+      console.warn('[3d] 多视图未成功，回退单图重建');
+    }
+  } catch (err) {
+    console.warn('[3d] 多视图链路异常，回退单图：', err);
+  }
+
+  // ---- 回退：单图重建 ----
+  setStageStatus('3D 构建中 0%', 0);
+  const resp = await postJson('/api/create3d', { image_url: state.resultImageUrl });
+  if (!resp.ok) throw new Error('create3d unavailable');
+
+  const data = await resp.json();
+  const taskId = data.task_id || (data.output && data.output.task_id);
+  if (!taskId) throw new Error('no task_id');
+  return { taskId, mode: data.demo ? 'demo' : 'single', message: data.message };
+}
+
 $('#btn360').addEventListener('click', async () => {
   if (state.threeDLoading) return;
 
@@ -1899,20 +1998,13 @@ $('#btn360').addEventListener('click', async () => {
   setStageStatus('3D 构建中 0%', 0);
 
   try {
-    const createUrl = getApiUrl('/api/create3d');
-    const createResp = await fetch(createUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ image_url: state.resultImageUrl })
-    });
-    if (!createResp.ok) throw new Error('create3d unavailable');
+    const created = await create3DTaskId();
+    const taskId = created.taskId;
 
-    const createData = await createResp.json();
-    const taskId = createData.task_id || (createData.output && createData.output.task_id);
-    if (!taskId) throw new Error('no task_id');
-
-    if (createData.demo) {
-      setStatus(createData.message || '3D 服务不可用，已切换演示模型');
+    if (created.mode === 'demo') {
+      setStatus(created.message || '3D 服务不可用，已切换演示模型');
+    } else if (created.mode === 'multiview') {
+      setStatus('已按四视图重建，正在生成模型…');
     } else {
       setStatus('3D 任务已提交，正在生成模型…');
     }
