@@ -631,20 +631,41 @@ model-viewer.hidden{ display: none; }
   background: rgba(243,239,230,.96);
 }
 .processing.active{ display: block; }
+.viewer.is-processing .placeholder{ visibility: hidden; }
 
 .proc-label{
   position: absolute;
-  left: 38px; bottom: 34px;
-  display: flex; align-items: baseline; gap: 12px;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+  text-align: center;
   font-family: var(--mono);
-  font-size: 10px;
-  letter-spacing: .16em;
+  font-size: 12px;
+  letter-spacing: .18em;
   text-transform: uppercase;
   color: var(--ink);
 }
 .proc-elapsed{
-  color: var(--ink-3);
+  color: var(--ink-2);
+  font-size: 11px;
+  letter-spacing: .1em;
   font-variant-numeric: tabular-nums;
+}
+
+.proc-track{
+  width: 172px;
+  height: 2px;
+  margin-top: 4px;
+  background: rgba(26,24,21,.12);
+  overflow: hidden;
+  display: block;
+}
+.proc-track i{
+  display: block;
+  width: 34%;
+  height: 100%;
+  background: var(--seal);
+  animation: barSlide 1.6s cubic-bezier(.16,1,.3,1) infinite;
 }
 
 .proc-bar{
@@ -1033,7 +1054,7 @@ body.is-busy .desc-input{
   .empty{ left: 24px; bottom: 24px; }
   .empty-mark{ right: 24px; }
   .ph-caption{ right: 24px; bottom: 24px; }
-  .proc-label{ left: 24px; bottom: 24px; }
+  .proc-track{ width: 140px; }
 }
 
 @media (max-width: 560px){
@@ -1138,8 +1159,8 @@ body.is-busy .desc-input{
     </div>
 
     <div class="rail-note">
-      <div class="rn-row"><span>输出</span>2D 1024px · 3D 约 3 万面</div>
-      <div class="rn-row"><span>预计</span>换装 10s · 3D 80s</div>
+      <div class="rn-row"><span>输出</span>2D 1024px · 3D 全精度</div>
+      <div class="rn-row"><span>预计</span>换装 10s · 3D 90s</div>
     </div>
 
   </aside>
@@ -1201,6 +1222,7 @@ body.is-busy .desc-input{
         <div class="proc-label">
           <span id="procText">AI 解析中</span>
           <span class="proc-elapsed" id="procElapsed"></span>
+          <span class="proc-track" aria-hidden="true"><i></i></span>
         </div>
         <div class="proc-bar" id="procBar"><span class="proc-fill" id="procFill"></span></div>
       </div>
@@ -1361,6 +1383,20 @@ async function fetchAsBlob(url) {
   const resp = await fetch(url, { mode: 'cors' });
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return resp.blob();
+}
+
+// 超过这个体积就不预先驻留内存（高模 40MB+ 在手机上会把页面拖死）
+const MAX_CACHE_BYTES = 12 * 1024 * 1024;
+
+async function prefetchModelBlob(url) {
+  try {
+    const head = await fetch(url, { method: 'HEAD', mode: 'cors' });
+    const len = Number(head.headers.get('content-length') || 0);
+    if (len > MAX_CACHE_BYTES) return null;
+    return await fetchAsBlob(url);
+  } catch (_) {
+    return null;
+  }
 }
 
 async function downloadImage() {
@@ -1660,6 +1696,9 @@ async function doTryOn() {
   state.modelIsReal = false;
   setTopProgress(null);
 
+  const viewerEl = $('#viewer');
+  if (viewerEl) viewerEl.classList.add('is-processing');
+
   const procBarEl = $('#procBar');
   const procFillEl = $('#procFill');
   if (procBarEl) procBarEl.classList.add('on');
@@ -1726,6 +1765,7 @@ async function doTryOn() {
     $('#procElapsed').textContent = '';
     processing.classList.remove('active');
     if (procBarEl) procBarEl.classList.remove('on');
+    if (viewerEl) viewerEl.classList.remove('is-processing');
     btnText.textContent = state.tried ? '重新换装' : '开始换装';
     state.busy = false;
     syncControls();
@@ -1885,10 +1925,12 @@ $('#btn360').addEventListener('click', async () => {
     state.modelIsReal = true;
     setTopProgress(100);
 
-    // Tripo 链接只有 5 分钟有效，成功后立刻把文件缓存到内存，下载时就不怕过期
-    fetchAsBlob(modelUrl)
-      .then((blob) => { state.modelBlob = blob; showDl('#dlModel', true); })
-      .catch(() => { showDl('#dlModel', true); });
+    // Tripo 链接只有 5 分钟有效，成功后尽量把文件缓存到内存，下载时就不怕过期。
+    // 但高模可能有几十 MB，不能无脑驻留内存，超过阈值就放弃缓存、按下需再取。
+    prefetchModelBlob(modelUrl).then((blob) => {
+      if (blob) state.modelBlob = blob;
+      showDl('#dlModel', true);
+    });
 
     loadModelIntoViewer(modelUrl, previewUrl);
     setStatus('3D 模型加载中…');
@@ -1988,8 +2030,8 @@ async function loadModelIntoViewer(url, previewUrl = null) {
 
   mv.src = url;
 
-  // 60 秒还没加载出来，多半是模型面数太高、浏览器扛不住，直接退回演示模型，
-  // 避免界面永远停在「模型载入中」
+  // 90 秒还没 load 才判定失败。高模（40MB 级）在正常网络下也要几十秒，
+  // 阈值太短会误杀；这里只在真正卡死时才退回演示模型。
   clearTimeout(mvSlowTimer);
   mvSlowTimer = setTimeout(() => {
     if (mv.loaded) return;
@@ -1999,9 +2041,9 @@ async function loadModelIntoViewer(url, previewUrl = null) {
       return;
     }
     mvLoading.classList.add('hidden');
-    setStatus('3D 模型过大，浏览器加载超时 · 已切换为演示模型');
+    setStatus('3D 模型加载超时 · 已切换为演示模型，可点「下载 3D 模型」另存');
     loadModelIntoViewer(DEMO_MODEL_URL);
-  }, 60000);
+  }, 90000);
 }
 
 /* =========================================================
