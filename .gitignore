@@ -7,6 +7,3 @@ npm-debug.log*
 # 打包暂存目录（构建产物，不入库）
 _pkg/
 *.zip
-
-# 对话记录材料不入公开仓库（随作品单独提交）
-docs/ai-history/
