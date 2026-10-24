@@ -229,7 +229,10 @@ ai-virtual-tryon/
 ├── server.js                      # 本地 Express 入口
 ├── edgeone.json                   # 云函数最长执行时间 60s
 └── docs/
-    └── technical-design.md        # 技术文档
+    ├── technical-design.md        # 技术文档源文件（Markdown）
+    ├── TECHNICAL.pdf              # 技术文档（PDF，13 页，提交用）
+    ├── video-script.md            # 演示视频脚本
+    └── ai-history/                # AI 对话历史（6 条 Prompt 链）
 ```
 
 ## 接口
@@ -277,7 +280,8 @@ ai-virtual-tryon/
 
 本项目全程采用人机协同完成：**人负责定义目标、拍板取舍、真机验证与代码推送；AI 负责读代码、定位问题、实现与实测。**
 
-开发过程中的关键对话、被推翻的错误推断，已按要求整理为对话记录材料随作品提交。
+开发过程中的关键对话、被推翻的错误推断，以及每一步对应的提交，记录在 [`docs/ai-history/`](docs/ai-history/README.md)：
+6 条完整 Prompt 链，每条包含「人的原话 → AI 的判断 → 修改建议 → 对应提交号」，可逐条核对。
 
 ## 提交历史
 
