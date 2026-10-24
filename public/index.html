@@ -1624,7 +1624,7 @@ const HISTORY_STORE = 'generations';
 const HISTORY_LIMIT = 10;   // 单条最多约 16MB（3 张 2K 图），10 条约 160MB，避免配额超限
 
 /* 你指定的示例图链接 */
-const PRESET_IMG_URL = '/preset/character.jpg';   // 本地托管：断网也能点「一键体验」
+const PRESET_IMG_URL = 'preset/character.jpg';   // 相对路径：http 与 file:// 下都能取到，断网也能点「一键体验」
 
 /* 接口地址解析：
    1) 同源部署（http://localhost:3000 或线上域名）→ 直接用相对路径；
@@ -1650,6 +1650,7 @@ const state = {
   threeD: false,
   threeDLoading: false,
   resultImageUrl: null,
+  resultImageSourceUrl: null,   // 3D 链路专用的公网 URL（与展示用的 blob: 分开）
   resultImageBlob: null,
   resultPrompt: '',
   modelUrl: null,
@@ -1904,7 +1905,10 @@ async function renderHistoryList() {
     prompt.textContent = record.prompt || '未填写描述';
     const meta = document.createElement('span');
     meta.className = 'history-meta';
-    const modelLabel = record.modelIsReal ? ' · 含 3D' : '';
+    // 只有模型 Blob 真入库才算「含 3D」；否则如实标「3D 已过期」，与详情页保持一致
+    const modelLabel = record.modelBlob
+      ? ' · 含 3D'
+      : (record.modelIsReal ? ' · 3D 已过期' : '');
     const statusLabel = record.status === 'generating' ? ' · 未完成' : '';
     meta.textContent = `${formatHistoryTime(record.createdAt)}${modelLabel}${statusLabel}`;
     const actions = document.createElement('div');
@@ -1976,6 +1980,8 @@ function restoreHistoryRecord(record, editMode) {
   state.personDataUrl = record.sourceImage || null;
   state.resultImageBlob = selected.blob || null;
   state.resultImageUrl = makeSessionObjectUrl(selected.blob) || selected.url;
+  // 展示用 blob:，提任务用原始 OSS 链接（24 小时有效）
+  state.resultImageSourceUrl = selected.url || null;
   state.resultPrompt = record.prompt || '';
   state.tried = true;
   // 只有模型 Blob 真的入库了才算「有 3D」。
@@ -2525,6 +2531,8 @@ function chooseTriple(url) {
   const selected = state.currentCandidates[selectedIndex];
   state.tried = true;
   state.resultImageUrl = url;
+  // 3D 链路必须用公网可访问的地址：blob: 只有本浏览器认得，Tripo 取不到
+  state.resultImageSourceUrl = selected?.url || url;
   state.resultImageBlob = selected?.blob || null;
   state.resultPrompt = ($('#promptInput').value || '').trim();
   state.threeD = false;
@@ -2776,6 +2784,19 @@ function setStageViews(views) {
 }
 
 /**
+ * 3D 链路要的是"公网可访问的图片地址"。
+ * state.resultImageUrl 在从历史恢复后可能是 blob:（本地展示用），
+ * 直接发给 Tripo 必然失败——所以统一从这里取，并校验协议。
+ */
+function sourceUrlFor3D() {
+  const url = state.resultImageSourceUrl || state.resultImageUrl;
+  if (!url || !/^https?:/i.test(url)) {
+    throw new Error('原图链接已不是公网地址（阿里云临时链接 24 小时有效），请重新换装后再生成 3D');
+  }
+  return url;
+}
+
+/**
  * 创建 3D 任务。
  * 优先走「一张图 → 四视图 → 重建」，失败或关闭时回退到单图重建。
  * 返回 { taskId, mode: 'multiview' | 'single' | 'demo', message }
@@ -2790,7 +2811,7 @@ async function create3DTaskId() {
 
   // ---- 先试多视图链路 ----
   try {
-    const mvResp = await postJson('/api/multiview', { image_url: state.resultImageUrl });
+    const mvResp = await postJson('/api/multiview', { image_url: sourceUrlFor3D() });
     const mv = await mvResp.json();
 
     if (mv && mv.success && mv.task_id) {
@@ -2838,7 +2859,7 @@ async function create3DTaskId() {
 
   // ---- 回退：单图重建 ----
   setStageStatus('3D 构建中 0%', 0);
-  const resp = await postJson('/api/create3d', { image_url: state.resultImageUrl });
+  const resp = await postJson('/api/create3d', { image_url: sourceUrlFor3D() });
   if (!resp.ok) throw new Error('create3d unavailable');
 
   const data = await resp.json();
