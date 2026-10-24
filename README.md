@@ -77,27 +77,46 @@
 | `ALIYUN_API_KEY` | **是** | — | 阿里云百炼 API Key，用于 2D 换装 |
 | `TRIPO_API_KEY` | **是** | — | Tripo API Key，用于 3D 生成 |
 | `WAN_MODEL` | 否 | `wan2.7-image-pro` | 换装模型 |
-| `WAN_SIZE` | 否 | `2K` | 出图尺寸 |
-| `TRIPO_MODEL_VERSION` | 否 | `v3.1-20260211` | 3D 模型版本 |
+| `WAN_SIZE` | 否 | `2K` | 出图尺寸（1K 约 1.6MB / 2K 约 5.4MB） |
+| `WAN_TIMEOUT_MS` | 否 | `55000` | 万相请求超时（毫秒） |
+| `DASHSCOPE_HOST` | 否 | `https://dashscope.aliyuncs.com` | 万相服务域名（新加坡区改为 `dashscope-intl`） |
+| `TRIPO_MODEL_VERSION` | 否 | `v3.1-20260211` | 3D 模型版本（可选 `P1-20260311` 低模） |
 | `TRIPO_MULTIVIEW` | 否 | `on` | `on` 走四视图重建（更准），`off` 走单图（省 10 credits） |
 | `TRIPO_FACE_LIMIT` | 否 | 不设（全精度） | 设数值可限面数，仅在弱网演示时使用 |
+| `TRIPO_TEXTURE_QUALITY` | 否 | 不设（standard） | 可设 `detailed`，贴图更细但多花约 10 credits |
+| `TRIPO_SMART_LOW_POLY` | 否 | 不设 | 设为 `true` 时额外请求智能减面 |
+| `TRIPO_HOST` | 否 | `https://openapi.tripo3d.com/v3` | Tripo 国内站（国际站 `.ai` 域名国内被污染） |
+| `TRIPO_TIMEOUT_MS` | 否 | `25000` | Tripo 请求超时（毫秒） |
+| `DEMO_MODEL_URL` | 否 | `/models/robot.glb` | 内置演示模型路径（仅在明确标注时使用） |
 | `PORT` | 否 | `3000` | 本地端口 |
 
-### 4. 四步跑起来
+### 4. 三步跑起来
+
+**方式 A：网盘包（已预填密钥，最省事）**
 
 ```bash
-# ① 拉代码
-git clone https://github.com/Z345-LAB/ai-virtual-tryon.git
-cd ai-virtual-tryon
+# ① 解压后进入目录（无需 clone，也不用复制 .env，包内已带）
+cd ciyuan-atelier
 
-# ② 装依赖（约 1 分钟）
+# ② 装依赖（首次约 1 分钟）
 npm install
 
-# ③ 配置密钥
-cp .env.example .env     # Windows: copy .env.example .env
-# 用编辑器打开 .env，填入 ALIYUN_API_KEY 与 TRIPO_API_KEY
+# ③ 启动
+npm start
+```
 
-# ④ 启动
+Windows 用户也可以**直接双击 `start.bat`**，它会自动检查 Node、自动装依赖、自动启动。
+
+> 注意：包内 `.env` 已预填可用密钥，**不要**执行 `cp .env.example .env`，那会用空模板覆盖掉。
+
+**方式 B：从 GitHub 克隆（仓库不含密钥）**
+
+```bash
+git clone https://github.com/Z345-LAB/ai-virtual-tryon.git
+cd ai-virtual-tryon
+npm install
+cp .env.example .env     # Windows: copy .env.example .env
+# 打开 .env，填入 ALIYUN_API_KEY 与 TRIPO_API_KEY（见下方变量表）
 npm start
 ```
 

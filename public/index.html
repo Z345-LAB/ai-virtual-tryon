@@ -537,9 +537,12 @@ main{
   background: var(--seal-soft);
 }
 .btn-secondary:disabled{
-  color: var(--ink-3);
+  /* 仍要让人看清这是「待解锁的按钮」，不能淡成空白框 */
+  color: var(--ink-2);
+  opacity: .7;
+  background: transparent;
   border-style: dashed;
-  border-color: var(--line);
+  border-color: var(--line-2);
   cursor: not-allowed;
 }
 

@@ -1,0 +1,3229 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>次元造物 - 虚拟角色一键换装与 3D 化</title>
+<script type="module" src="/vendor/model-viewer.min.js"></script>
+<style>
+/* =========================================================
+   次元造物 · Atelier（纸感版）
+   象牙白纸面 / 墨黑字 / 朱砂一点
+========================================================= */
+
+*, *::before, *::after { box-sizing: border-box; }
+
+:root{
+  /* 纸面 */
+  --paper:      #F3EFE6;
+  --paper-2:    #FAF8F2;
+  --paper-3:    #EAE4D8;
+  --raised:     #FFFDF8;
+  --well:       #ECE5D8;
+
+  /* 墨 */
+  --ink:        #1A1815;
+  --ink-2:      #57524A;
+  --ink-3:      #6E6759;
+
+  /* 线 */
+  --line:       rgba(26,24,21,.13);
+  --line-2:     rgba(26,24,21,.22);
+  --line-3:     rgba(26,24,21,.34);
+
+  /* 朱砂：唯一强调色 */
+  --seal:       #A63D2A;
+  --seal-soft:  rgba(166,61,42,.10);
+  --seal-line:  rgba(166,61,42,.45);
+
+  --ok:         #6E7A66;
+
+  --r: 2px;
+  --r-md: 3px;
+
+  --mono: ui-monospace, "SF Mono", "JetBrains Mono", "Cascadia Mono", Menlo, Consolas, monospace;
+  --sans: "Geist", "Satoshi", "Cabinet Grotesk", "Segoe UI Variable Display", -apple-system,
+          "PingFang SC", "HarmonyOS Sans SC", "Microsoft YaHei", system-ui, sans-serif;
+}
+
+html{ height: 100%; }
+
+body{
+  margin: 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--sans);
+  font-size: 13.5px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow: hidden;
+}
+
+/* 纸纹：固定层，不参与滚动 */
+body::after{
+  content: "";
+  position: fixed; inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  opacity: .035;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4'/%3E%3C/filter%3E%3Crect width='160' height='160' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ================= 顶栏 ================= */
+.topbar{
+  position: relative; z-index: 3;
+  flex: none;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 24px;
+  height: 60px;
+  padding: 0 34px;
+  border-bottom: 1px solid var(--line);
+}
+
+.wordmark{ display: flex; align-items: baseline; gap: 15px; min-width: 0; }
+.wordmark h1{
+  margin: 0;
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  color: var(--ink);
+  white-space: nowrap;
+}
+.wordmark .divider{ width: 1px; height: 12px; background: var(--line-2); }
+.wordmark p{
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+.topbar-right{ display: flex; align-items: center; gap: 22px; flex: none; }
+.meta{
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.sys{
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  transition: color .32s cubic-bezier(.16,1,.3,1);
+}
+.sys::before{
+  content: "";
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: .45;
+  flex: none;
+}
+.sys.online{ color: var(--ok); }
+.sys.online::before{ opacity: 1; }
+
+.history-toggle{
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 9px;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: .08em;
+  cursor: pointer;
+  transition: color .2s, border-color .2s, background .2s;
+}
+.history-toggle:hover{ color: var(--ink); border-color: var(--seal-line); background: var(--seal-soft); }
+.history-toggle span{
+  min-width: 17px;
+  padding: 0 4px;
+  color: var(--seal);
+  font-family: var(--mono);
+  font-size: 9px;
+  text-align: center;
+}
+
+/* ================= 生成历史：仅存浏览器，不触发文件下载 ================= */
+.history-overlay{
+  position: fixed; inset: 0;
+  z-index: 80;
+}
+.history-overlay.hidden{ display: none; }
+.history-backdrop{
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  padding: 0;
+  background: rgba(26,24,21,.28);
+  border: 0;
+  cursor: default;
+  backdrop-filter: blur(2px);
+}
+.history-panel{
+  position: absolute; top: 0; right: 0;
+  width: min(440px, 100%); height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--paper-2);
+  border-left: 1px solid var(--line-2);
+  box-shadow: -24px 0 60px -36px rgba(26,24,21,.65);
+  animation: historyIn .28s cubic-bezier(.16,1,.3,1);
+}
+@keyframes historyIn{ from{ transform: translateX(24px); opacity: 0; } to{ transform: none; opacity: 1; } }
+.history-head{
+  flex: none;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.history-head h2{ margin: 0; font-size: 17px; font-weight: 500; letter-spacing: .1em; }
+.history-close{
+  padding: 4px 0;
+  color: var(--ink-2);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line-2);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.history-note{
+  flex: none;
+  margin: 0;
+  padding: 13px 24px;
+  color: var(--ink-2);
+  background: var(--paper-3);
+  border-bottom: 1px solid var(--line);
+  font-size: 10.5px;
+  line-height: 1.75;
+}
+.history-list{
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 18px 24px 30px;
+  overflow-y: auto;
+}
+.history-empty{
+  margin: auto;
+  padding: 40px 20px;
+  color: var(--ink-3);
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.9;
+}
+.history-item{
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 14px;
+  padding: 10px;
+  background: var(--raised);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+}
+.history-thumb{
+  width: 96px; height: 118px;
+  object-fit: cover;
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+}
+.history-content{ min-width: 0; display: flex; flex-direction: column; }
+.history-prompt{
+  display: -webkit-box;
+  margin: 2px 0 6px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 11.5px;
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.history-meta{
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .04em;
+}
+.history-actions{ display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 10px; }
+.history-actions button{
+  padding: 5px 8px;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  font-family: inherit;
+  font-size: 9.5px;
+  cursor: pointer;
+}
+.history-actions button:hover{ color: var(--ink); border-color: var(--seal-line); background: var(--seal-soft); }
+.history-actions .history-delete:hover{ color: var(--seal); }
+
+/* ================= 主区 ================= */
+main{
+  position: relative; z-index: 1;
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: 388px minmax(0, 1fr);
+}
+
+/* ---- 左栏 ---- */
+.rail{
+  display: flex; flex-direction: column;
+  min-height: 0;
+  padding: 32px 32px 0;
+  border-right: 1px solid var(--line);
+  overflow-y: auto; overflow-x: hidden;
+}
+.rail::-webkit-scrollbar{ width: 3px; }
+.rail::-webkit-scrollbar-thumb{ background: var(--line-2); }
+
+.step{
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
+  margin-bottom: 28px;
+  animation: riseIn .5s cubic-bezier(.16,1,.3,1);
+}
+.step:nth-child(1){ animation-delay: .03s; }
+.step:nth-child(2){ animation-delay: .09s; }
+@keyframes riseIn{
+  from{ transform: translateY(5px); }
+  to  { transform: none; }
+}
+
+.step-num{
+  padding-top: 2px;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .08em;
+  color: var(--seal);
+}
+.step-body{ min-width: 0; }
+
+.step-head{
+  display: flex; align-items: baseline; gap: 9px;
+  margin-bottom: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+}
+.step-title{
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: .08em;
+  color: var(--ink);
+}
+.step-hint{
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+/* 预设：唯一入口，做成加深的实心块 */
+.preset-btn{
+  width: 100%;
+  display: flex; align-items: center; gap: 10px;
+  padding: 13px 14px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 500;
+  letter-spacing: .1em;
+  text-align: left;
+  color: var(--ink);
+  background: #E7DFCE;
+  border: 1px solid var(--line-3);
+  border-radius: var(--r);
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.55);
+  transition: background .22s, border-color .22s, transform .16s, box-shadow .22s;
+}
+.preset-btn:hover:not(:disabled){
+  background: #DFD5C0;
+  border-color: var(--ink-2);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.4), 0 6px 14px -10px rgba(60,48,32,.6);
+}
+.preset-btn:active:not(:disabled){
+  transform: translateY(1px);
+  box-shadow: inset 0 1px 2px rgba(60,48,32,.18);
+}
+.preset-btn:disabled{ opacity: .38; cursor: not-allowed; }
+
+.preset-mark{
+  width: 2px; height: 14px;
+  background: var(--seal);
+  flex: none;
+}
+.preset-text{
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.preset-label{ flex: none; font-size: 12.5px; letter-spacing: .1em; }
+.preset-sub{
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .1em;
+  color: var(--ink-3);
+  transition: color .22s;
+}
+.preset-tag{
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--seal);
+  padding: 2px 6px;
+  border: 1px solid var(--seal-line);
+  border-radius: 2px;
+}
+
+.preset-note{
+  margin: 11px 0 0;
+  font-size: 10.5px;
+  line-height: 1.7;
+  color: var(--ink-3);
+}
+
+/* 上传 */
+.upload-box{
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  display: grid; place-items: center;
+  border: 1px dashed var(--line-3);
+  border-radius: var(--r-md);
+  background: var(--paper-2);
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color .24s, background .24s;
+}
+.upload-box:hover{ border-color: var(--seal-line); background: #FCFAF5; }
+.upload-box.dragging{ border-color: var(--seal); background: var(--seal-soft); }
+
+.upload-inner{
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 14px;
+  text-align: center;
+  pointer-events: none;
+}
+.upload-inner svg{
+  width: 20px; height: 20px;
+  stroke: var(--ink-3);
+  fill: none;
+  stroke-width: 1.2;
+  transition: stroke .24s;
+}
+.upload-box:hover .upload-inner svg{ stroke: var(--seal); }
+.u-title{ font-size: 11.5px; letter-spacing: .06em; color: var(--ink-2); }
+.u-sub{
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.preview{
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  object-fit: contain;
+  background: var(--paper-3);
+  display: none;
+}
+.upload-box.has-image{ border-style: solid; border-color: var(--line-2); }
+.upload-box.has-image .preview{ display: block; }
+.upload-box.has-image .upload-inner{ display: none; }
+.upload-box.locked::after{
+  content: "";
+  position: absolute; inset: 0;
+  background: rgba(243,239,230,.66);
+  pointer-events: none;
+}
+
+/* 描述 */
+.desc-input{
+  width: 100%;
+  min-height: 76px;
+  padding: 11px 12px;
+  resize: vertical;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  background: var(--paper-2);
+  color: var(--ink);
+  font-family: inherit;
+  font-size: 12.5px;
+  line-height: 1.7;
+  outline: none;
+  transition: border-color .22s, background .22s;
+}
+.desc-input::placeholder{ color: var(--ink-3); }
+.desc-input:focus{ border-color: var(--ink); background: #FCFAF5; }
+
+.hint{
+  margin: 10px 0 0;
+  font-size: 10.5px;
+  line-height: 1.7;
+  color: var(--ink-3);
+  max-width: 36ch;
+}
+
+/* 操作 */
+.actions{
+  display: flex; flex-direction: column; gap: 9px;
+  padding: 2px 0 20px;
+  animation: riseIn .5s cubic-bezier(.16,1,.3,1) .15s;
+}
+
+.btn{
+  position: relative;
+  width: 100%;
+  padding: 13px 16px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: .16em;
+  border-radius: var(--r);
+  cursor: pointer;
+  overflow: hidden;
+  transition: background .24s, color .24s, border-color .24s, transform .16s;
+}
+.btn:active:not(:disabled){ transform: translateY(1px); }
+
+/* 主按钮：墨块，纸色字 */
+.btn-primary{
+  color: var(--paper-2);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+}
+.btn-primary::after{
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 32%, rgba(255,255,255,.16) 50%, transparent 68%);
+  transform: translateX(-120%);
+  transition: transform .66s cubic-bezier(.16,1,.3,1);
+  pointer-events: none;
+}
+.btn-primary:hover:not(:disabled)::after{ transform: translateX(120%); }
+.btn-primary:hover:not(:disabled){ background: #2C2823; border-color: #2C2823; }
+.btn-primary:disabled{
+  color: var(--ink-3);
+  background: transparent;
+  border: 1px solid var(--line);
+}
+.btn-primary:disabled::after{ display: none; }
+
+.btn-secondary{
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid var(--line-2);
+}
+.btn-secondary:hover:not(:disabled){
+  color: var(--ink);
+  border-color: var(--seal-line);
+  background: var(--seal-soft);
+}
+.btn-secondary:disabled{
+  color: var(--ink-3);
+  border-style: dashed;
+  border-color: var(--line);
+  cursor: not-allowed;
+}
+
+.btn .btn-text{ display: inline-block; }
+
+/* 脚注 */
+.rail-note{
+  margin-top: auto;
+  padding: 14px 0 26px;
+  border-top: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .06em;
+  color: var(--ink-3);
+}
+.rn-row{ display: flex; gap: 10px; white-space: nowrap; }
+.rn-row span{ flex: none; width: 24px; color: var(--seal); }
+
+/* ================= 右侧舞台 ================= */
+.stage{
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  min-height: 0;
+  padding: 28px 34px 0;
+  background: var(--paper-2);
+}
+
+.stage-head{
+  display: flex; align-items: flex-end; gap: 16px;
+  padding-bottom: 16px;
+}
+.stage-title{
+  font-size: 20px;
+  font-weight: 400;
+  letter-spacing: .02em;
+  color: var(--ink);
+  line-height: 1.05;
+}
+.stage-sub{
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .22em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding-bottom: 3px;
+}
+.stage-rule{ flex: 1; height: 1px; background: var(--line); margin-bottom: 5px; }
+.badge{
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  padding: 4px 8px;
+  border: 1px solid var(--line-2);
+  border-radius: 2px;
+  transition: color .3s, border-color .3s;
+  margin-bottom: 2px;
+}
+.badge.live{ color: var(--seal); border-color: var(--seal-line); }
+
+/* 画框 */
+.viewer{
+  position: relative;
+  min-height: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 50% 0%, #FFFDF8, var(--paper-3) 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,.7),
+    0 24px 48px -34px rgba(60,48,32,.4);
+}
+
+.placeholder{
+  position: absolute; inset: 0;
+  z-index: 2;
+  transition: opacity .5s cubic-bezier(.16,1,.3,1), transform .5s cubic-bezier(.16,1,.3,1);
+}
+.placeholder.fade-out{ opacity: 0; transform: scale(1.006); pointer-events: none; }
+.placeholder.hidden{ display: none; }
+
+/* 空状态：留白 + 十字准线 + 左下角说明 */
+.empty{
+  position: absolute;
+  inset: 46px 52px 42px;
+  border: 1px solid var(--line);
+}
+.empty-cross{
+  position: absolute;
+  left: 50%; top: 15%;
+  width: 1px; height: 30px;
+  background: var(--line-3);
+  transform: translate(-50%, -50%);
+  opacity: .7;
+}
+.empty-cross::after{
+  content: "";
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 30px; height: 1px;
+  background: var(--line-3);
+  transform: translate(-50%, -50%);
+}
+.empty-copy{
+  position: absolute;
+  left: 26px; bottom: 24px;
+  max-width: 34ch;
+}
+.empty-idx{
+  display: block;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--seal);
+  margin-bottom: 9px;
+}
+.empty-line1{
+  margin: 0;
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: .06em;
+  color: var(--ink);
+}
+.empty-line2{
+  margin: 7px 0 0;
+  font-size: 11.5px;
+  line-height: 1.75;
+  color: var(--ink-3);
+}
+.empty-mark{
+  position: absolute;
+  right: 44px; top: 50%;
+  width: 74px; height: 74px;
+  transform: translateY(-50%);
+  opacity: .5;
+}
+.empty-mark::before,
+.empty-mark::after{
+  content: "";
+  position: absolute;
+  background: var(--line-3);
+}
+.empty-mark::before{ left: 50%; top: 0; width: 1px; height: 100%; }
+.empty-mark::after{ top: 50%; left: 0; height: 1px; width: 100%; }
+
+.ph-caption{
+  position: absolute;
+  right: 38px; bottom: 34px;
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.ai-result{
+  position: absolute; inset: 0;
+  z-index: 3;
+  width: 100%; height: 100%;
+  object-fit: contain;
+  background: var(--paper-3);
+  opacity: 0;
+  transition: opacity .5s cubic-bezier(.16,1,.3,1);
+}
+.ai-result.show{ opacity: 1; }
+.ai-result.hidden{ display: none; }
+
+model-viewer{
+  position: absolute; inset: 0;
+  z-index: 2;
+  width: 100%; height: 100%;
+  background: transparent;
+  --poster-color: transparent;
+  --progress-bar-color: transparent;
+  --progress-mask: transparent;
+}
+model-viewer.hidden{ display: none; }
+
+/* ================= 加载态 ================= */
+.mv-loading{
+  position: absolute;
+  left: 18px; bottom: 18px;
+  z-index: 7;
+  display: flex; flex-direction: column; gap: 7px;
+  min-width: 176px;
+  padding: 10px 13px;
+  background: rgba(255,253,248,.94);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  box-shadow: 0 10px 24px -18px rgba(60,48,32,.9);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  pointer-events: none;
+}
+.mv-loading.hidden{ display: none; }
+.mv-text{ white-space: nowrap; }
+.mv-views{ display: flex; gap: 4px; }
+.mv-views:empty{ display: none; }
+.mv-views img{
+  width: 34px; height: 34px;
+  object-fit: cover;
+  border: 1px solid var(--line-2);
+  border-radius: 2px;
+  background: var(--paper-3);
+  display: block;
+}
+.mv-bar{
+  display: block;
+  width: 100%; height: 2px;
+  background: rgba(26,24,21,.12);
+  overflow: hidden;
+}
+.mv-bar i{
+  display: block;
+  width: 0%; height: 100%;
+  background: var(--seal);
+  transition: width .3s cubic-bezier(.16,1,.3,1);
+}
+
+.sk-box{
+  position: relative;
+  width: 96px;
+  aspect-ratio: 3 / 4;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  overflow: hidden;
+  background: var(--paper-3);
+}
+.sk-box::after{
+  content: "";
+  position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.75) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: shimmer 1.9s cubic-bezier(.16,1,.3,1) infinite;
+}
+@keyframes shimmer{
+  0%{ transform: translateX(-100%); }
+  60%, 100%{ transform: translateX(100%); }
+}
+
+.processing{
+  position: absolute; inset: 0;
+  z-index: 6;
+  display: none;
+  background: rgba(243,239,230,.96);
+}
+.processing.active{ display: block; }
+.viewer.is-processing .placeholder{ visibility: hidden; }
+
+.proc-label{
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: 9px;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.proc-elapsed{
+  color: var(--ink-2);
+  font-size: 11px;
+  letter-spacing: .1em;
+  font-variant-numeric: tabular-nums;
+}
+
+.proc-track{
+  width: 172px;
+  height: 2px;
+  margin-top: 4px;
+  background: rgba(26,24,21,.12);
+  overflow: hidden;
+  display: block;
+}
+.proc-track i{
+  display: block;
+  width: 34%;
+  height: 100%;
+  background: var(--seal);
+  animation: barSlide 1.6s cubic-bezier(.16,1,.3,1) infinite;
+}
+
+.proc-bar{
+  position: absolute; left: 0; right: 0; bottom: 0;
+  height: 1px;
+  background: rgba(26,24,21,.08);
+  overflow: hidden;
+  opacity: 0;
+  transition: opacity .24s;
+}
+.proc-bar.on{ opacity: 1; }
+.proc-fill{
+  display: block; height: 100%; width: 26%;
+  background: linear-gradient(90deg, transparent, var(--seal), transparent);
+  animation: barSlide 1.8s cubic-bezier(.16,1,.3,1) infinite;
+}
+.proc-fill.determinate{
+  width: 0;
+  background: var(--seal);
+  animation: none;
+  transition: width .3s cubic-bezier(.16,1,.3,1);
+}
+@keyframes barSlide{
+  0%{ transform: translateX(-100%); }
+  100%{ transform: translateX(380%); }
+}
+
+.top-progress{
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 1px;
+  z-index: 8;
+  background: rgba(26,24,21,.06);
+  opacity: 0;
+  transition: opacity .24s;
+}
+.top-progress.on{ opacity: 1; }
+.top-progress span{
+  display: block; height: 100%; width: 0;
+  background: var(--seal);
+  transition: width .5s cubic-bezier(.16,1,.3,1);
+}
+
+/* ================= 舞台主引导（选图后出现） ================= */
+.stage-cta{
+  position: absolute;
+  left: 50%; bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 9;
+  display: inline-flex; align-items: center; gap: 12px;
+  padding: 14px 22px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  color: var(--paper-2);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--r);
+  cursor: pointer;
+  box-shadow: 0 14px 30px -18px rgba(26,24,21,.9);
+  transition: background .24s, transform .16s, box-shadow .24s;
+}
+.stage-cta.hidden{ display: none; }
+.stage-cta svg{
+  width: 16px; height: 16px;
+  stroke: currentColor; fill: none; stroke-width: 1.5;
+  transition: transform .3s cubic-bezier(.16,1,.3,1);
+}
+.stage-cta:hover:not(:disabled){ background: #2C2823; }
+.stage-cta:hover:not(:disabled) svg{ transform: translateX(4px); }
+.stage-cta:active:not(:disabled){ transform: translateX(-50%) translateY(1px); }
+.stage-cta:disabled{ opacity: .5; cursor: progress; }
+
+/* 下载 */
+.dl-bar{
+  position: absolute; right: 18px; bottom: 18px;
+  z-index: 9;
+  display: flex; gap: 7px;
+}
+.dl-btn{
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 8px 13px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+  background: rgba(250,248,242,.94);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(6px);
+  pointer-events: none;
+  transition: opacity .28s cubic-bezier(.16,1,.3,1), transform .28s cubic-bezier(.16,1,.3,1),
+              color .18s, border-color .18s, background .18s;
+}
+.dl-btn.show{ opacity: 1; transform: none; pointer-events: auto; }
+.dl-btn:hover{ color: var(--ink); border-color: var(--seal-line); background: #FFFDF8; }
+.dl-btn:active{ transform: translateY(1px); }
+.dl-btn svg{ width: 11px; height: 11px; stroke: currentColor; fill: none; stroke-width: 1.4; }
+.dl-btn[disabled]{ opacity: .45; cursor: progress; }
+
+/* ================= AI 点评 ================= */
+.ai-card{
+  padding: 18px 0 22px;
+  margin-top: 18px;
+  border-top: 1px solid var(--line);
+  display: grid;
+  grid-template-columns: 118px minmax(0, 1fr);
+  gap: 20px;
+}
+.ai-head{ display: flex; align-items: baseline; gap: 8px; }
+.ai-head h3{
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-2);
+}
+.ai-head .ai-sub{
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.ai-head .ai-icon{
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: var(--seal);
+}
+.ai-body{ min-height: 36px; }
+.ai-empty{
+  margin: 0;
+  font-size: 11.5px;
+  line-height: 1.75;
+  color: var(--ink-3);
+  max-width: 62ch;
+}
+.ai-row{
+  display: grid;
+  grid-template-columns: 62px minmax(0, 1fr);
+  gap: 10px;
+  padding: 2px 0;
+  opacity: 0;
+  transform: translateY(3px);
+  transition: opacity .3s cubic-bezier(.16,1,.3,1), transform .3s cubic-bezier(.16,1,.3,1);
+}
+.ai-row.done{ opacity: 1; transform: none; }
+.ai-tag{
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--seal);
+  padding-top: 2px;
+}
+.ai-text{
+  font-size: 11.5px;
+  line-height: 1.8;
+  color: var(--ink-2);
+  max-width: 64ch;
+}
+.refine-actions{
+  grid-column: 2;
+  display: flex; flex-wrap: wrap; gap: 7px;
+  margin-top: -8px;
+}
+.refine-btn{
+  padding: 7px 10px;
+  color: var(--ink-2);
+  background: var(--raised);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  transition: color .18s, border-color .18s, background .18s;
+}
+.refine-btn:hover:not(:disabled){ color: var(--ink); border-color: var(--seal-line); background: var(--seal-soft); }
+.refine-btn:disabled{ opacity: .45; cursor: wait; }
+
+/* ================= 页脚 ================= */
+.statusbar{
+  position: relative; z-index: 3;
+  flex: none;
+  display: flex; align-items: center; gap: 10px;
+  height: 36px;
+  padding: 0 34px;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .06em;
+  color: var(--ink-3);
+}
+.statusbar .pulse{
+  width: 4px; height: 4px;
+  border-radius: 50%;
+  background: var(--seal);
+  flex: none;
+}
+
+/* ================= 首屏主操作 ================= */
+.hero{
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  width: min(400px, 82%);
+  text-align: left;
+}
+.hero-eyebrow{
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--seal);
+  margin-bottom: 12px;
+}
+.hero-title{
+  margin: 0;
+  font-size: 23px;
+  font-weight: 400;
+  letter-spacing: .03em;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.hero-desc{
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.85;
+  color: var(--ink-3);
+  max-width: 30ch;
+}
+.hero-cta{
+  display: flex; align-items: center; justify-content: space-between; gap: 14px;
+  width: 100%;
+  margin-top: 22px;
+  padding: 17px 20px;
+  font-family: inherit;
+  font-size: 14.5px;
+  font-weight: 500;
+  letter-spacing: .14em;
+  color: var(--paper-2);
+  background: var(--ink);
+  border: 1px solid var(--ink);
+  border-radius: var(--r);
+  cursor: pointer;
+  transition: background .24s, transform .16s, box-shadow .24s;
+}
+.hero-cta svg{
+  width: 18px; height: 18px;
+  stroke: currentColor; fill: none; stroke-width: 1.4;
+  transition: transform .3s cubic-bezier(.16,1,.3,1);
+}
+.hero-cta:hover:not(:disabled){ background: #2C2823; box-shadow: 0 10px 24px -16px rgba(26,24,21,.9); }
+.hero-cta:hover:not(:disabled) svg{ transform: translateX(4px); }
+.hero-cta:active:not(:disabled){ transform: translateY(1px); }
+.hero-cta:disabled{ opacity: .45; cursor: not-allowed; }
+.hero-link{
+  margin-top: 14px;
+  padding: 0;
+  font-family: var(--mono);
+  font-size: 9.5px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  transition: color .2s, border-color .2s;
+}
+.hero-link:hover{ color: var(--ink); border-bottom-color: var(--line-3); }
+
+/* ---- 首屏层级：还没图时，「一键体验」是唯一墨块，开始换装退为描边 ---- */
+body.is-first #btnTry:not(:disabled){
+  color: var(--ink-2);
+  background: transparent;
+  border-color: var(--line-2);
+}
+body.is-first #btnTry:not(:disabled):hover{
+  color: var(--ink);
+  background: var(--paper-3);
+  border-color: var(--ink-3);
+}
+body.is-first .preset-btn:not(:disabled){
+  color: var(--paper-2);
+  background: var(--ink);
+  border-color: var(--ink);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.12);
+}
+body.is-first .preset-btn:not(:disabled) .preset-tag{
+  color: var(--paper-2);
+  border-color: rgba(255,255,255,.3);
+}
+body.is-first .preset-btn:not(:disabled) .preset-sub{
+  color: rgba(250,248,242,.62);
+}
+body.is-first .preset-btn:not(:disabled):hover{
+  background: #2C2823;
+  border-color: #2C2823;
+}
+
+/* ================= 一次试三套 ================= */
+.triple{
+  position: absolute; inset: 0;
+  z-index: 4;
+  display: flex; flex-direction: column;
+  padding: 18px;
+  background: rgba(250,248,242,.97);
+}
+.triple.hidden{ display: none; }
+.triple-head{
+  display: flex; align-items: baseline; gap: 10px;
+  padding-bottom: 12px;
+  font-size: 13px;
+  letter-spacing: .08em;
+  color: var(--ink);
+}
+.triple-close{
+  margin-left: auto;
+  padding: 2px 0;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .14em;
+  color: var(--ink-3);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid transparent;
+  cursor: pointer;
+  transition: color .18s, border-color .18s;
+}
+.triple-close:hover{ color: var(--ink); border-bottom-color: var(--line-3); }
+.triple-sub{
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .18em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.triple-grid{
+  flex: 1; min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.tcard{
+  position: relative;
+  display: flex; flex-direction: column;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+  background: var(--raised);
+  overflow: hidden;
+  cursor: default;
+  transition: border-color .2s, transform .2s cubic-bezier(.16,1,.3,1), box-shadow .2s;
+}
+.tcard.ready{ cursor: pointer; }
+.tcard.ready:hover{
+  border-color: var(--ink-3);
+  transform: translateY(-3px);
+  box-shadow: 0 16px 30px -22px rgba(60,48,32,.8);
+}
+.tcard-img{
+  flex: 1; min-height: 0;
+  position: relative;
+  background: var(--paper-3);
+  overflow: hidden;
+}
+.tcard-img img{
+  width: 100%; height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.tcard-img::after{
+  content: ;
+  position: absolute; inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(255,255,255,.65) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: shimmer 1.8s cubic-bezier(.16,1,.3,1) infinite;
+}
+.tcard.ready .tcard-img::after,
+.tcard.failed .tcard-img::after{ display: none; }
+.tcard-foot{
+  flex: none;
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px;
+  padding: 9px 11px;
+  border-top: 1px solid var(--line);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+.tcard.ready .tcard-foot{ color: var(--ink-2); }
+.tcard-pick{ color: var(--seal); }
+
+@media (max-width: 900px){
+  .triple-grid{ gap: 8px; }
+  .triple{ padding: 12px; }
+  .tcard-foot{ font-size: 8px; padding: 7px 8px; }
+}
+
+/* ================= 对比度强化 ================= */
+/* 三层表面：纸底 → 更亮的舞台 → 凹陷的画框；按钮与输入一律用浮起面 */
+
+.stage{ background: #FCFBF7; }
+
+.viewer{
+  background:
+    radial-gradient(115% 90% at 50% 0%, #F3EEE4, var(--well) 100%);
+  border: 1px solid var(--line-2);
+  box-shadow:
+    inset 0 1px 3px rgba(60,48,32,.10),
+    inset 0 -1px 0 rgba(255,255,255,.6);
+}
+
+/* 输入与上传：白面 + 实边，和纸底拉开 */
+.desc-input,
+.upload-box{
+  background: var(--raised);
+  border: 1px solid var(--line-3);
+  box-shadow: 0 1px 0 rgba(255,255,255,.9);
+}
+.upload-box{ border-style: dashed; }
+.desc-input:focus,
+.upload-box:hover{
+  border-color: var(--seal-line);
+  box-shadow: 0 1px 0 rgba(255,255,255,.9), 0 0 0 3px rgba(166,61,42,.07);
+}
+
+/* 次要按钮：从描边改为浮起实心，一眼能看出可以点 */
+.btn-secondary{
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--line-3);
+  box-shadow: 0 1px 0 rgba(255,255,255,.9);
+}
+.btn-secondary:hover:not(:disabled){
+  color: var(--ink);
+  background: #FFFEFB;
+  border-color: var(--ink-3);
+  box-shadow: 0 2px 6px -4px rgba(60,48,32,.5);
+}
+.btn-secondary:disabled{
+  color: var(--ink-3);
+  background: var(--paper-3);
+  border-style: dashed;
+  border-color: var(--line-2);
+  box-shadow: none;
+}
+
+/* 主按钮禁用态也保留块感，只是明显熄灭 */
+.btn-primary:disabled{
+  color: var(--ink-3);
+  background: var(--paper-3);
+  border: 1px dashed var(--line-2);
+}
+
+/* 提示文字：从浅灰提到正文灰，字号加大半档 */
+.hint,
+.preset-note{
+  color: var(--ink-2);
+  font-size: 11px;
+}
+.step-hint{ color: var(--ink-2); }
+.badge{ color: var(--ink-2); border-color: var(--line-3); }
+.ai-empty{ color: var(--ink-2); }
+
+.rail-note{
+  color: var(--ink-2);
+  font-size: 9.5px;
+  padding: 15px 0 26px;
+}
+.rail-note span{ color: var(--seal); font-weight: 500; }
+
+/* 状态栏：加底色与实线，读起来像一条状态条而不是装饰线 */
+.statusbar{
+  background: var(--paper-3);
+  border-top: 1px solid var(--line-2);
+  color: var(--ink-2);
+  font-size: 10px;
+}
+
+/* 画框内的说明文字同步提亮 */
+.hero-desc{ color: var(--ink-2); }
+.ph-caption{ color: var(--ink-3); }
+.empty-line2{ color: var(--ink-2); }
+
+/* 一键体验（未载入底图时）保持墨块；载入后退回深纸块但加实边 */
+body:not(.is-first) .preset-btn:not(:disabled){
+  background: #E3DAC6;
+  border-color: var(--ink-3);
+}
+
+/* ================= 忙碌降权 ================= */
+body.is-busy .preset-btn,
+body.is-busy .upload-box,
+body.is-busy .desc-input{
+  pointer-events: none;
+  opacity: .42;
+}
+
+/* ================= 响应式 ================= */
+@media (max-width: 1080px){
+  main{ grid-template-columns: 336px minmax(0, 1fr); }
+  .rail{ padding: 26px 22px 0; }
+  .stage{ padding: 24px 24px 0; }
+}
+
+@media (max-width: 900px){
+  body{ height: auto; min-height: 100dvh; overflow: auto; }
+  .topbar{ height: 54px; padding: 0 20px; }
+  .wordmark p{ display: none; }
+  .wordmark .divider{ display: none; }
+  main{ grid-template-columns: 1fr; }
+  .rail{
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+    padding: 24px 20px 0;
+    overflow: visible;
+  }
+  .stage{
+    display: flex; flex-direction: column;
+    padding: 22px 20px 0;
+  }
+  .viewer{ min-height: 52vh; flex: none; }
+  .ai-card{ grid-template-columns: 1fr; gap: 10px; }
+  .refine-actions{ grid-column: 1; margin-top: 0; }
+  .statusbar{ padding: 0 20px; height: 34px; }
+  .rail-note{ margin-top: 12px; }
+  .empty{ left: 24px; bottom: 24px; }
+  .empty-mark{ right: 24px; }
+  .ph-caption{ right: 24px; bottom: 24px; }
+  .proc-track{ width: 140px; }
+}
+
+@media (max-width: 560px){
+  .topbar{ height: auto; padding: 12px 16px; flex-wrap: wrap; gap: 8px; }
+  .meta{ display: none; }
+  .rail, .stage{ padding-left: 16px; padding-right: 16px; }
+  .step{ grid-template-columns: 32px minmax(0, 1fr); margin-bottom: 24px; }
+  .stage-title{ font-size: 18px; }
+  .stage-sub{ display: none; }
+  .viewer{ min-height: 46vh; }
+  .dl-bar{ right: 10px; bottom: 10px; gap: 5px; }
+  .dl-btn{ padding: 7px 10px; font-size: 8.5px; }
+  .empty-mark{ display: none; }
+  .statusbar{ padding: 0 16px; font-size: 9px; }
+}
+
+@media (prefers-reduced-motion: reduce){
+  *, *::before, *::after{
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
+
+</style>
+</head>
+<body>
+
+<!-- ============ 顶栏 ============ -->
+<header class="topbar">
+  <div class="wordmark">
+    <h1>次元造物</h1>
+    <span class="divider"></span>
+    <p>Atelier — Virtual Character Studio</p>
+  </div>
+  <div class="topbar-right">
+    <button class="history-toggle" id="btnHistory" type="button" aria-controls="historyOverlay" aria-expanded="false">
+      生成历史 <span id="historyCount">0</span>
+    </button>
+    <span class="meta">WAN 2.7 / TRIPO V3</span>
+    <span class="sys" id="sysTag">system offline</span>
+  </div>
+</header>
+
+<!-- ============ 主区域 ============ -->
+<main>
+
+  <!-- ---------- 左栏 ---------- -->
+  <aside class="rail">
+
+    <div class="step">
+      <span class="step-num">01</span>
+      <div class="step-body">
+        <div class="step-head">
+          <span class="step-title">参考角色</span>
+          <span class="step-hint">Reference</span>
+        </div>
+        <button class="preset-btn preset-primary" id="presetOne">
+          <span class="preset-mark" aria-hidden="true"></span>
+          <span class="preset-text">
+            <span class="preset-label">一键体验</span>
+            <span class="preset-sub">无需上传 · 一次出三套</span>
+          </span>
+          <span class="preset-tag">古风</span>
+        </button>
+        <div class="upload-box" id="boxPerson" style="margin-top:10px">
+          <input type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" id="filePerson" hidden>
+          <div class="upload-inner">
+            <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="8" r="3.6"></circle>
+              <path d="M4.5 20.5c0-3.8 3.4-6.2 7.5-6.2s7.5 2.4 7.5 6.2"></path>
+            </svg>
+            <span class="u-title">上传角色底图</span>
+            <span class="u-sub">Drop / Click</span>
+          </div>
+          <img class="preview" id="prevPerson" alt="角色底图预览">
+        </div>
+        <p class="preset-note">内置示例角色，也可换成自己的立绘。</p>
+      </div>
+    </div>
+
+    <div class="step">
+      <span class="step-num">02</span>
+      <div class="step-body">
+        <div class="step-head">
+          <span class="step-title">换装描述</span>
+          <span class="step-hint">Prompt</span>
+        </div>
+        <textarea
+          id="promptInput"
+          class="desc-input"
+          rows="3"
+          maxlength="1000"
+          placeholder="例如：剪裁利落的黑色长风衣，金属扣饰"></textarea>
+        <p class="hint">支持 JPG / PNG / WEBP，单张不超过 12 MB。建议单人、清晰、正面的角色立绘。</p>
+      </div>
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-primary" id="btnTry">
+        <span class="btn-text">开始换装</span>
+      </button>
+      <button class="btn btn-secondary" id="btn360" disabled>
+        <span class="btn-text">生成 360° 3D 展示</span>
+      </button>
+    </div>
+
+    <div class="rail-note">
+      <div class="rn-row"><span>输出</span>换装 3 张 · 3D 全精度</div>
+      <div class="rn-row"><span>预计</span>换装 30s · 3D 约 2 分钟</div>
+    </div>
+
+  </aside>
+
+  <!-- ---------- 右侧舞台 ---------- -->
+  <section class="stage">
+
+    <div class="stage-head">
+      <span class="stage-title">作品舞台</span>
+      <span class="stage-sub">Live Canvas</span>
+      <span class="stage-rule"></span>
+      <span class="badge" id="stageBadge">Ready</span>
+    </div>
+
+    <div class="viewer" id="viewer">
+
+      <div class="top-progress" id="topProgress"><span id="topProgressFill"></span></div>
+
+      <div class="placeholder" id="placeholder">
+        <div class="empty">
+          <div class="empty-cross" aria-hidden="true"></div>
+          <div class="hero">
+            <span class="hero-eyebrow">无需上传 · 约 30 秒</span>
+            <p class="hero-title">一次给三种可能</p>
+            <p class="hero-desc">AI 一次未必猜准你的想法。同一段描述给你三张不同的可能，挑一张最接近的，再变成 3D。</p>
+            <button class="hero-cta" id="heroTry" type="button">
+              <span>一键体验</span>
+              <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"></path><path d="M12.5 5.5L19 12l-6.5 6.5"></path></svg>
+            </button>
+            <button class="hero-link" id="heroUpload" type="button">或者，上传自己的角色</button>
+          </div>
+          <div class="ph-caption">Idle / 等待输入</div>
+        </div>
+      </div>
+
+      <img id="aiResult" class="ai-result hidden" alt="AI 换装结果">
+
+      <div class="triple hidden" id="triple">
+        <div class="triple-head">
+          <span>三种可能</span>
+          <span class="triple-sub">Pick one</span>
+          <button class="triple-close" id="tripleClose" type="button">返回</button>
+        </div>
+        <div class="triple-grid" id="tripleGrid"></div>
+      </div>
+
+      <model-viewer
+        id="mv"
+        class="hidden"
+        alt="360° 3D 角色展示"
+        auto-rotate
+        auto-rotate-delay="0"
+        rotation-per-second="26deg"
+        camera-controls
+        touch-action="pan-y"
+        environment-image="neutral"
+        shadow-intensity="0.9"
+        exposure="1.05"
+        interaction-prompt="none">
+      </model-viewer>
+
+      <div class="mv-loading hidden" id="mvLoading">
+        <span class="mv-text" id="mvLoadingText">正在构建 3D 模型</span>
+        <span class="mv-bar" aria-hidden="true"><i id="mvLoadingBar"></i></span>
+        <span class="mv-views" id="mvViews"></span>
+      </div>
+
+      <div class="processing" id="processing">
+        <div class="proc-label">
+          <span id="procText">AI 解析中</span>
+          <span class="proc-elapsed" id="procElapsed"></span>
+          <span class="proc-track" aria-hidden="true"><i></i></span>
+        </div>
+        <div class="proc-bar" id="procBar"><span class="proc-fill" id="procFill"></span></div>
+      </div>
+
+      <button class="stage-cta hidden" id="stageCta" type="button">
+        <span>生成 360° 3D 展示</span>
+        <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h13"></path><path d="M12.5 5.5L19 12l-6.5 6.5"></path></svg>
+      </button>
+
+      <div class="dl-bar" id="dlBar">
+        <button class="dl-btn" id="dlImage" type="button" title="下载换装结果图">
+          <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11"></path><path d="M7.5 10.5L12 15l4.5-4.5"></path><path d="M4.5 19.5h15"></path></svg>
+          下载图片
+        </button>
+        <button class="dl-btn" id="dlModel" type="button" title="下载 3D 模型（.glb）">
+          <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l8 4.5v9L12 21l-8-4.5v-9z"></path><path d="M12 12l8-4.5"></path><path d="M12 12v9"></path><path d="M12 12L4 7.5"></path></svg>
+          下载 3D 模型
+        </button>
+      </div>
+
+    </div>
+
+    <div class="ai-card">
+      <div class="ai-head">
+        <span class="ai-icon"></span>
+        <h3>造型调整</h3>
+        <span class="ai-sub">Next Step</span>
+      </div>
+      <div class="ai-body" id="aiBody">
+        <p class="ai-empty">选定作品后，可以基于当前结果继续微调，或主动下载角色卡。</p>
+      </div>
+    </div>
+
+  </section>
+
+</main>
+
+<!-- 历史只保存到浏览器 IndexedDB；查看、编辑和下载均由用户主动选择 -->
+<div class="history-overlay hidden" id="historyOverlay">
+  <button class="history-backdrop" id="historyBackdrop" type="button" aria-label="关闭生成历史"></button>
+  <aside class="history-panel" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
+    <div class="history-head">
+      <h2 id="historyTitle">生成历史</h2>
+      <button class="history-close" id="historyClose" type="button">关闭</button>
+    </div>
+    <p class="history-note">记录仅保存在当前浏览器，最多保留 20 条，不会自动下载文件。清理浏览器数据会删除记录；图片与模型只有主动点击下载才会保存到设备。</p>
+    <div class="history-list" id="historyList">
+      <p class="history-empty">还没有生成记录。<br>完成一次换装后会出现在这里。</p>
+    </div>
+  </aside>
+</div>
+
+<footer class="statusbar">
+  <span class="pulse"></span>
+  <span id="status">正在连接后端</span>
+</footer>
+
+<script>
+/* =========================================================
+   配置与状态
+========================================================= */
+const TRYON_TIMEOUT_MS = 90000; // 后端走同步调用，通常 10–20 秒；云函数最长 60 秒，这里留余量
+const BACKEND_PORT = '3000';     // 与 .env 里的 PORT 保持一致
+const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+const HISTORY_DB_NAME = 'ciyuan-atelier';
+const HISTORY_STORE = 'generations';
+const HISTORY_LIMIT = 20;
+
+/* 你指定的示例图链接 */
+const PRESET_IMG_URL = 'https://i.postimg.cc/mZq8kJBW/mmexport1792513468133.jpg';
+
+/* 接口地址解析：
+   1) 同源部署（http://localhost:3000 或线上域名）→ 直接用相对路径；
+   2) 双击打开 index.html（file://）→ 指向本机后端；
+   3) Live Server 之类换了端口的静态服务器 → 指向本机后端。
+   需要指向其他地址时，在页面里提前设置 window.API_BASE 即可。 */
+const API_BASE = (() => {
+  if (window.API_BASE) return String(window.API_BASE).replace(/\/+$/, '');
+  if (location.protocol === 'file:') return `http://localhost:${BACKEND_PORT}`;
+  const isLocal = ['localhost', '127.0.0.1'].includes(location.hostname);
+  if (isLocal && location.port && location.port !== BACKEND_PORT) {
+    return `http://${location.hostname}:${BACKEND_PORT}`;
+  }
+  return '';
+})();
+
+const state = {
+  personFile: null,
+  personDataUrl: null,
+  busy: false,
+  tried: false,
+  threeD: false,
+  threeDLoading: false,
+  resultImageUrl: null,
+  resultImageBlob: null,
+  resultPrompt: '',
+  modelUrl: null,
+  modelBlob: null,
+  modelPreviewUrl: null,
+  modelIsReal: false,
+  modelStatus: 'idle',
+  currentCandidates: [],
+  historyId: null,
+  sessionObjectUrls: [],
+  pending: false,
+  typingToken: 0
+};
+
+const $ = (sel) => document.querySelector(sel);
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const setStatus = (text) => { $('#status').textContent = text; };
+
+/* =========================================================
+   生成历史（IndexedDB）
+   仅写入浏览器数据库，不调用<a download>，不会自动保存文件到设备。
+========================================================= */
+let historyDBPromise = null;
+let historyWriteQueue = Promise.resolve();
+let historyListObjectUrls = [];
+
+function openHistoryDB() {
+  if (historyDBPromise) return historyDBPromise;
+  historyDBPromise = new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error('当前浏览器不支持 IndexedDB'));
+      return;
+    }
+    const request = indexedDB.open(HISTORY_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(HISTORY_STORE)) {
+        const store = db.createObjectStore(HISTORY_STORE, { keyPath: 'id' });
+        store.createIndex('createdAt', 'createdAt');
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('无法打开生成历史'));
+    request.onblocked = () => reject(new Error('生成历史被其他页面占用'));
+  });
+  return historyDBPromise;
+}
+
+function requestResult(request) {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('生成历史读写失败'));
+  });
+}
+
+function transactionDone(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error('生成历史事务失败'));
+    tx.onabort = () => reject(tx.error || new Error('生成历史事务已取消'));
+  });
+}
+
+function enqueueHistoryWrite(operation) {
+  const run = historyWriteQueue.then(operation);
+  historyWriteQueue = run.catch((err) => console.warn('[history]', err));
+  return run;
+}
+
+async function getHistoryRecord(id) {
+  const db = await openHistoryDB();
+  return requestResult(db.transaction(HISTORY_STORE, 'readonly').objectStore(HISTORY_STORE).get(id));
+}
+
+async function getAllHistoryRecords() {
+  const db = await openHistoryDB();
+  const records = await requestResult(db.transaction(HISTORY_STORE, 'readonly').objectStore(HISTORY_STORE).getAll());
+  return records.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+async function pruneHistory(db) {
+  const tx = db.transaction(HISTORY_STORE, 'readwrite');
+  const store = tx.objectStore(HISTORY_STORE);
+  const records = await requestResult(store.getAll());
+  records.sort((a, b) => b.createdAt - a.createdAt);
+  records.slice(HISTORY_LIMIT).forEach((record) => store.delete(record.id));
+  await transactionDone(tx);
+}
+
+function writeHistoryRecord(record) {
+  return enqueueHistoryWrite(async () => {
+    const db = await openHistoryDB();
+    const tx = db.transaction(HISTORY_STORE, 'readwrite');
+    tx.objectStore(HISTORY_STORE).put(record);
+    await transactionDone(tx);
+    await pruneHistory(db);
+    await refreshHistoryCount();
+    if (!$('#historyOverlay').classList.contains('hidden')) await renderHistoryList();
+  });
+}
+
+function patchHistoryRecord(id, patch) {
+  if (!id) return Promise.resolve();
+  return enqueueHistoryWrite(async () => {
+    const db = await openHistoryDB();
+    const tx = db.transaction(HISTORY_STORE, 'readwrite');
+    const store = tx.objectStore(HISTORY_STORE);
+    const record = await requestResult(store.get(id));
+    if (!record) return;
+    store.put({ ...record, ...patch, updatedAt: Date.now() });
+    await transactionDone(tx);
+    await refreshHistoryCount();
+    if (!$('#historyOverlay').classList.contains('hidden')) await renderHistoryList();
+  });
+}
+
+function deleteHistoryRecord(id) {
+  return enqueueHistoryWrite(async () => {
+    const db = await openHistoryDB();
+    const tx = db.transaction(HISTORY_STORE, 'readwrite');
+    tx.objectStore(HISTORY_STORE).delete(id);
+    await transactionDone(tx);
+    await refreshHistoryCount();
+    await renderHistoryList();
+  });
+}
+
+function createHistoryDraft(prompt, sourceImage) {
+  const id = window.crypto?.randomUUID?.() || `work-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  state.historyId = id;
+  state.currentCandidates = VARIANT_LABELS.map(() => null);
+  state.resultImageBlob = null;
+  state.modelStatus = 'idle';
+  const now = Date.now();
+  writeHistoryRecord({
+    id,
+    createdAt: now,
+    updatedAt: now,
+    prompt,
+    sourceImage,
+    candidates: state.currentCandidates,
+    selectedIndex: -1,
+    modelUrl: null,
+    modelBlob: null,
+    modelPreviewUrl: null,
+    modelIsReal: false,
+    modelStatus: 'idle',
+    status: 'generating',
+  }).catch((err) => console.warn('[history] 无法保存生成记录', err));
+  return id;
+}
+
+async function cacheHistoryCandidates(historyId, candidatesToCache) {
+  const candidates = await Promise.all(candidatesToCache.map(async (candidate) => {
+    if (!candidate?.url || candidate.blob) return candidate;
+    try {
+      return { ...candidate, blob: await fetchAsBlob(candidate.url) };
+    } catch (_) {
+      return candidate;
+    }
+  }));
+  if (state.historyId === historyId) {
+    state.currentCandidates = candidates;
+    const selected = candidates[state.currentCandidates.findIndex((item) => item?.url === state.resultImageUrl)];
+    if (selected?.blob) state.resultImageBlob = selected.blob;
+  }
+  await patchHistoryRecord(historyId, { candidates });
+}
+
+function historyThumb(record) {
+  const selected = record.candidates?.[record.selectedIndex];
+  return selected || record.candidates?.find(Boolean) || null;
+}
+
+function makeSessionObjectUrl(blob) {
+  if (!blob) return null;
+  const url = URL.createObjectURL(blob);
+  state.sessionObjectUrls.push(url);
+  return url;
+}
+
+function releaseSessionObjectUrls() {
+  state.sessionObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  state.sessionObjectUrls = [];
+}
+
+async function refreshHistoryCount() {
+  try {
+    const records = await getAllHistoryRecords();
+    $('#historyCount').textContent = String(records.length);
+  } catch (err) {
+    console.warn('[history] 无法读取记录数量', err);
+  }
+}
+
+function formatHistoryTime(timestamp) {
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(new Date(timestamp));
+}
+
+async function renderHistoryList() {
+  const list = $('#historyList');
+  historyListObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  historyListObjectUrls = [];
+  list.innerHTML = '';
+
+  let records;
+  try {
+    records = await getAllHistoryRecords();
+  } catch (err) {
+    const empty = document.createElement('p');
+    empty.className = 'history-empty';
+    empty.textContent = '生成历史不可用，请检查浏览器存储权限。';
+    list.appendChild(empty);
+    return;
+  }
+
+  $('#historyCount').textContent = String(records.length);
+  if (!records.length) {
+    const empty = document.createElement('p');
+    empty.className = 'history-empty';
+    empty.textContent = '还没有生成记录。完成一次换装后会出现在这里。';
+    list.appendChild(empty);
+    return;
+  }
+
+  records.forEach((record) => {
+    const item = document.createElement('article');
+    item.className = 'history-item';
+    const thumb = historyThumb(record);
+    const img = document.createElement('img');
+    img.className = 'history-thumb';
+    img.alt = '历史作品缩略图';
+    if (thumb?.blob) {
+      img.src = URL.createObjectURL(thumb.blob);
+      historyListObjectUrls.push(img.src);
+    } else if (thumb?.url) {
+      img.src = thumb.url;
+    }
+
+    const content = document.createElement('div');
+    content.className = 'history-content';
+    const prompt = document.createElement('p');
+    prompt.className = 'history-prompt';
+    prompt.textContent = record.prompt || '未填写描述';
+    const meta = document.createElement('span');
+    meta.className = 'history-meta';
+    const modelLabel = record.modelIsReal ? ' · 含 3D' : '';
+    const statusLabel = record.status === 'generating' ? ' · 未完成' : '';
+    meta.textContent = `${formatHistoryTime(record.createdAt)}${modelLabel}${statusLabel}`;
+    const actions = document.createElement('div');
+    actions.className = 'history-actions';
+
+    const viewBtn = document.createElement('button');
+    viewBtn.type = 'button';
+    viewBtn.textContent = '查看';
+    viewBtn.disabled = !thumb;
+    viewBtn.addEventListener('click', () => restoreHistoryRecord(record, false));
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.textContent = '再次编辑';
+    editBtn.disabled = !record.sourceImage;
+    editBtn.addEventListener('click', () => restoreHistoryRecord(record, true));
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'history-delete';
+    deleteBtn.textContent = '删除';
+    deleteBtn.addEventListener('click', async () => {
+      if ((state.busy || state.threeDLoading) && state.historyId === record.id) {
+        setStatus('当前作品正在生成，请完成后再删除记录');
+        return;
+      }
+      if (!window.confirm('确定删除这条生成历史吗？此操作只会删除浏览器中的记录。')) return;
+      await deleteHistoryRecord(record.id);
+      if (state.historyId === record.id) state.historyId = null;
+    });
+
+    actions.append(viewBtn, editBtn, deleteBtn);
+    content.append(prompt, meta, actions);
+    item.append(img, content);
+    list.appendChild(item);
+  });
+}
+
+function openHistory() {
+  $('#historyOverlay').classList.remove('hidden');
+  $('#btnHistory').setAttribute('aria-expanded', 'true');
+  renderHistoryList();
+  $('#historyClose').focus();
+}
+
+function closeHistory() {
+  $('#historyOverlay').classList.add('hidden');
+  $('#btnHistory').setAttribute('aria-expanded', 'false');
+  $('#btnHistory').focus();
+}
+
+function restoreHistoryRecord(record, editMode) {
+  if (state.busy || state.threeDLoading) {
+    closeHistory();
+    setStatus('当前任务仍在生成，请完成后再恢复历史作品');
+    return;
+  }
+  const selected = historyThumb(record);
+  if (!selected) {
+    setStatus('这条记录还没有可查看的作品');
+    return;
+  }
+
+  releaseSessionObjectUrls();
+  state.busy = false;
+  state.pending = false;
+  state.threeDLoading = false;
+  state.historyId = record.id;
+  state.currentCandidates = record.candidates || [];
+  state.personFile = null;
+  state.personDataUrl = record.sourceImage || null;
+  state.resultImageBlob = selected.blob || null;
+  state.resultImageUrl = makeSessionObjectUrl(selected.blob) || selected.url;
+  state.resultPrompt = record.prompt || '';
+  state.tried = true;
+  state.threeD = Boolean(record.modelIsReal && (record.modelBlob || record.modelUrl));
+  state.modelIsReal = state.threeD;
+  state.modelBlob = record.modelBlob || null;
+  state.modelUrl = makeSessionObjectUrl(record.modelBlob) || (state.modelIsReal ? record.modelUrl : null);
+  state.modelPreviewUrl = record.modelPreviewUrl || null;
+  state.modelStatus = state.modelIsReal ? 'ready' : (record.modelStatus || 'idle');
+
+  prevPerson.src = record.sourceImage || state.resultImageUrl;
+  boxPerson.classList.toggle('has-image', Boolean(record.sourceImage || state.resultImageUrl));
+  $('#promptInput').value = record.prompt || '';
+  showTriple(false);
+  showResult(state.resultImageUrl);
+  showDl('#dlImage', true);
+  showDl('#dlModel', Boolean(state.modelIsReal && state.modelUrl));
+  showStageCta(!state.modelIsReal);
+  $('#stageBadge').textContent = 'HISTORY';
+  $('#stageBadge').classList.remove('live');
+  $('#btn360 .btn-text').textContent = state.modelIsReal ? '查看已生成 3D' : '生成 360° 3D 展示';
+  renderAIComment(record.prompt || '换装');
+  syncControls();
+  closeHistory();
+  setStatus(editMode
+    ? '已恢复底图与描述 · 修改后主动点击「开始换装」，不会自动生成'
+    : '已恢复历史作品 · 可继续编辑、生成 3D 或主动下载');
+
+  if (editMode) {
+    $('#promptInput').focus();
+    if (window.innerWidth <= 900) $('#promptInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+$('#btnHistory').addEventListener('click', openHistory);
+$('#historyClose').addEventListener('click', closeHistory);
+$('#historyBackdrop').addEventListener('click', closeHistory);
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !$('#historyOverlay').classList.contains('hidden')) closeHistory();
+});
+
+/* 首屏层级：没有底图时，「一键体验」是唯一的主操作 */
+function syncHierarchy() {
+  const armed = Boolean(state.personFile || state.personDataUrl);
+  document.body.classList.toggle('is-first', !armed);
+}
+
+/* =========================================================
+   交互锁定：生成期间禁用所有会触发新请求的控件
+   —— 避免重复点击造成重复计费
+========================================================= */
+function syncControls() {
+  const busy = state.busy || state.threeDLoading;
+
+  ['#presetOne'].forEach((sel) => {
+    const el = $(sel);
+    if (el) el.disabled = busy || state.pending;
+  });
+
+  const btnTry = $('#btnTry');
+  if (btnTry) {
+    // 抽卡结果等着选的时候也锁住，防止连点造成重复生成
+    btnTry.disabled = busy || state.pending;
+    const label = btnTry.querySelector('.btn-text');
+    if (label) {
+      if (busy) label.textContent = 'AI 出图中…';
+      else if (state.pending) label.textContent = '请先选定一张';
+      else label.textContent = state.tried ? '重新换装' : '开始换装';
+    }
+  }
+
+  const input = $('#promptInput');
+  if (input) input.disabled = busy;
+
+  const box = $('#boxPerson');
+  if (box) box.classList.toggle('locked', busy);
+
+  document.body.classList.toggle('is-busy', busy);
+
+  // 3D 按钮：没有换装结果或正在生成时都不可用
+  const b360 = $('#btn360');
+  if (b360) b360.disabled = busy || !state.tried;
+
+  const hero = $('#heroTry');
+  if (hero) hero.disabled = busy || state.pending;
+
+  syncHierarchy();
+}
+
+/* =========================================================
+   结果下载
+========================================================= */
+function stamp() {
+  const d = new Date();
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}`;
+}
+
+function showDl(which, on) {
+  const el = $(which);
+  if (el) el.classList.toggle('show', Boolean(on));
+}
+
+/**
+ * 跨域链接直接用 <a download> 会被浏览器忽略，所以先 fetch 成 blob 再触发下载。
+ * Tripo 的模型链接只有 5 分钟有效，因此生成成功后会提前把 blob 缓存下来。
+ */
+async function saveBlobOrOpen(blob, filename, fallbackUrl) {
+  if (blob) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+    setStatus(`已开始下载：${filename}`);
+    return;
+  }
+  if (fallbackUrl) {
+    window.open(fallbackUrl, '_blank', 'noopener');
+    setStatus('下载受限，已在新标签打开链接（可右键另存为）');
+  }
+}
+
+async function fetchAsBlob(url) {
+  const resp = await fetch(url, { mode: 'cors' });
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return resp.blob();
+}
+
+// 超过这个体积就不预先驻留内存（高模 40MB+ 在手机上会把页面拖死）
+const MAX_CACHE_BYTES = 12 * 1024 * 1024;
+
+async function prefetchModelBlob(url) {
+  try {
+    const head = await fetch(url, { method: 'HEAD', mode: 'cors' });
+    const len = Number(head.headers.get('content-length') || 0);
+    if (len > MAX_CACHE_BYTES) return null;
+    return await fetchAsBlob(url);
+  } catch (_) {
+    return null;
+  }
+}
+
+async function downloadImage() {
+  if (!state.resultImageUrl) return;
+  const btn = $('#dlImage');
+  btn.disabled = true;
+  setStatus('正在准备图片…');
+  try {
+    const blob = await fetchAsBlob(state.resultImageUrl);
+    const ext = (blob.type || '').includes('png') ? 'png' : 'jpg';
+    await saveBlobOrOpen(blob, `次元造物-换装-${stamp()}.${ext}`, state.resultImageUrl);
+  } catch (err) {
+    await saveBlobOrOpen(null, null, state.resultImageUrl);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+async function downloadModel() {
+  if (!state.modelIsReal || (!state.modelBlob && !state.modelUrl)) {
+    setStatus('当前没有可下载的真实 3D 模型');
+    return;
+  }
+  const btn = $('#dlModel');
+  btn.disabled = true;
+  setStatus('正在准备 3D 模型…');
+  try {
+    const blob = state.modelBlob || await fetchAsBlob(state.modelUrl);
+    state.modelBlob = blob;
+    await saveBlobOrOpen(blob, `次元造物-3D模型-${stamp()}.glb`, state.modelUrl);
+  } catch (err) {
+    await saveBlobOrOpen(null, null, state.modelUrl);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/* =========================================================
+   进度条
+========================================================= */
+function setProcBar(percent) {
+  const bar = $('#procBar');
+  const fill = $('#procFill');
+  if (!bar || !fill) return;
+  if (percent === null) {
+    bar.classList.remove('on');
+    fill.classList.remove('determinate');
+    fill.style.width = '';
+    return;
+  }
+  bar.classList.add('on');
+  fill.classList.add('determinate');
+  fill.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+}
+
+/** 舞台左下角的轻量进度卡：不遮挡作品，只在角落报进度 */
+function setStageStatus(text, percent) {
+  const box = $('#mvLoading');
+  const label = $('#mvLoadingText');
+  const bar = $('#mvLoadingBar');
+  if (!box) return;
+  if (text === null) {
+    box.classList.add('hidden');
+    return;
+  }
+  box.classList.remove('hidden');
+  if (label) label.textContent = text;
+  if (bar && typeof percent === 'number') {
+    bar.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+  }
+}
+
+function setTopProgress(percent) {
+  const wrap = $('#topProgress');
+  const fill = $('#topProgressFill');
+  if (!wrap || !fill) return;
+  if (percent === null) {
+    wrap.classList.remove('on');
+    fill.style.width = '0%';
+    return;
+  }
+  wrap.classList.add('on');
+  fill.style.width = `${Math.max(0, Math.min(100, percent))}%`;
+}
+
+/* =========================================================
+   请求路径处理
+========================================================= */
+function getApiUrl(path) {
+  return `${API_BASE}${path}`;
+}
+
+/* =========================================================
+   图片转 Base64 
+========================================================= */
+async function urlToBase64(url) {
+  const resp = await fetch(url, { mode: 'cors' });
+  if (!resp.ok) throw new Error(`抓取图片失败: HTTP ${resp.status}`);
+  const blob = await resp.blob();
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('Base64 转换失败'));
+    reader.readAsDataURL(blob);
+  });
+}
+
+/* =========================================================
+   角色底图上传（手动）
+========================================================= */
+const boxPerson = $('#boxPerson');
+const inputPerson = $('#filePerson');
+const prevPerson = $('#prevPerson');
+
+boxPerson.addEventListener('click', () => inputPerson.click());
+inputPerson.addEventListener('change', () => {
+  const file = inputPerson.files && inputPerson.files[0];
+  if (file) loadPersonFile(file);
+});
+
+['dragenter', 'dragover'].forEach((ev) =>
+  boxPerson.addEventListener(ev, (e) => {
+    e.preventDefault();
+    boxPerson.classList.add('dragging');
+  })
+);
+['dragleave', 'drop'].forEach((ev) =>
+  boxPerson.addEventListener(ev, (e) => {
+    e.preventDefault();
+    boxPerson.classList.remove('dragging');
+  })
+);
+boxPerson.addEventListener('drop', (e) => {
+  const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+  if (file && file.type.startsWith('image/')) loadPersonFile(file);
+});
+
+function loadPersonFile(file) {
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+  if (!allowedTypes.includes(file.type)) {
+    setStatus('请选择 JPG / PNG / WEBP 图片');
+    return;
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    setStatus('图片超过 12 MB，请压缩后再上传');
+    inputPerson.value = '';
+    return;
+  }
+  // 释放上一张预览图的 object URL，避免内存堆积
+  if (prevPerson.dataset.objectUrl) {
+    URL.revokeObjectURL(prevPerson.dataset.objectUrl);
+  }
+  const objectUrl = URL.createObjectURL(file);
+  prevPerson.dataset.objectUrl = objectUrl;
+
+  state.personFile = file;
+  state.personDataUrl = null;
+  prevPerson.src = objectUrl;
+  boxPerson.classList.add('has-image');
+  setStatus(`角色底图已载入 · ${Math.max(1, Math.round(file.size / 1024))} KB`);
+}
+
+function compressImage(file, maxDim = 1280, quality = 0.9) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(objectUrl);
+      const w0 = img.naturalWidth || img.width;
+      const h0 = img.naturalHeight || img.height;
+      const scale = Math.min(1, maxDim / Math.max(w0, h0));
+      const w = Math.max(1, Math.round(w0 * scale));
+      const h = Math.max(1, Math.round(h0 * scale));
+
+      const canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('浏览器不支持 Canvas'));
+        return;
+      }
+      // 万相接口不接受带透明通道的 PNG，这里统一压到白底 JPEG
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objectUrl);
+      reject(new Error('图片解码失败'));
+    };
+    img.src = objectUrl;
+  });
+}
+
+async function getPersonDataUrl() {
+  if (state.personDataUrl) return state.personDataUrl; 
+  if (state.personFile) {
+    const dataUrl = await compressImage(state.personFile);
+    state.personDataUrl = dataUrl;
+    return dataUrl;
+  }
+  return null;
+}
+
+/* =========================================================
+   加载状态 UI
+========================================================= */
+const STAGES = [
+  '解析角色面部与体型特征…',
+  '理解换装描述中的服饰设定…',
+  'AI 重绘服装与材质细节…',
+  '渲染光影与二次元线条…',
+  '预计需要 1–2 分钟，请稍候…'
+];
+
+function startStageLoop() {
+  let i = 0;
+  const el = $('#procText');
+  const tick = () => {
+    const text = STAGES[i % STAGES.length];
+    el.textContent = text;
+    setStatus(text);
+    i++;
+  };
+  tick();
+  return setInterval(tick, 2600);
+}
+
+function startElapsedTimer() {
+  const el = $('#procElapsed');
+  const start = Date.now();
+  el.textContent = '0s';
+  return setInterval(() => {
+    const s = Math.floor((Date.now() - start) / 1000);
+    el.textContent = s + 's';
+  }, 1000);
+}
+
+/* =========================================================
+   结果展示
+========================================================= */
+function showResult(imageUrl) {
+  const placeholder = $('#placeholder');
+  const mv = $('#mv');
+  const mvLoading = $('#mvLoading');
+  const aiResult = $('#aiResult');
+
+  if (!imageUrl || typeof imageUrl !== 'string') {
+    setStatus('⚠ 后端未返回有效的图片地址');
+    return;
+  }
+
+  placeholder.classList.add('fade-out');
+  setTimeout(() => placeholder.classList.add('hidden'), 460);
+
+  mv.classList.add('hidden');
+  mvLoading.classList.add('hidden');
+
+  let finalUrl = imageUrl;
+  if (!/^(https?:|data:)/i.test(finalUrl)) {
+    try { finalUrl = new URL(finalUrl, location.href).href; } catch (_) {}
+  }
+
+  aiResult.classList.remove('hidden');
+  aiResult.classList.remove('show');
+  void aiResult.offsetWidth;
+  
+  aiResult.onload = () => aiResult.classList.add('show');
+  aiResult.onerror = () => {
+    setStatus('⚠ 后端返回的图片链接加载失败，请检查网络或图片地址');
+  };
+  
+  aiResult.src = finalUrl;
+
+  setTimeout(() => {
+    if (!aiResult.classList.contains('hidden') && !aiResult.classList.contains('show')) {
+      aiResult.classList.add('show');
+    }
+  }, 1500);
+
+  // 手机上结果在首屏之外，生成完自动滚到展示区
+  if (window.innerWidth <= 900) {
+    const v = $('#viewer');
+    if (v) setTimeout(() => v.scrollIntoView({ behavior: 'smooth', block: 'center' }), 320);
+  }
+}
+
+/* =========================================================
+   换装主流程
+========================================================= */
+async function doTryOn() {
+  if (state.busy || state.pending) return;
+
+  if (!state.personFile && !state.personDataUrl) {
+    setStatus('请先上传角色底图，或点上方「一键体验」');
+    return;
+  }
+
+  const promptText = ($('#promptInput').value || '').trim();
+  if (!promptText) {
+    setStatus('请先填写换装描述');
+    return;
+  }
+
+  // 同一段描述交给 AI 出三种可能，让用户挑，而不是一次定生死
+  await runTriple(promptText);
+}
+
+$('#btnTry').addEventListener('click', () => doTryOn());
+
+/* 下载按钮 */
+$('#dlImage').addEventListener('click', downloadImage);
+$('#dlModel').addEventListener('click', downloadModel);
+
+/* 初始同步一次控件状态 */
+syncControls();
+
+/* =========================================================
+   一次试三套：并行出三种造型，选定一套再做 3D（只花一份 3D 积分）
+========================================================= */
+const VARIANT_LABELS = ['方案 1', '方案 2', '方案 3'];
+
+function showTriple(on) {
+  const box = $('#triple');
+  if (!box) return;
+  box.classList.toggle('hidden', !on);
+}
+
+/** 选完图后在舞台底部露出主引导，避免用户不知道下一步点哪 */
+function showStageCta(on) {
+  const el = $('#stageCta');
+  if (!el) return;
+  el.classList.toggle('hidden', !on);
+  el.disabled = false;
+}
+
+/** 先建三张骨架，出图后逐张填，避免全白等 30 秒 */
+function buildTripleCards() {
+  const grid = $('#tripleGrid');
+  if (!grid) return [];
+  grid.innerHTML = VARIANT_LABELS.map(
+    (label, i) => `
+    <div class="tcard" data-i="${i}">
+      <div class="tcard-img"></div>
+      <div class="tcard-foot"><span>${label}</span><span class="tcard-pick">生成中</span></div>
+    </div>`,
+  ).join('');
+  return Array.from(grid.querySelectorAll('.tcard'));
+}
+
+function fillTripleCard(cards, i, url) {
+  const card = cards[i];
+  if (!card) return;
+  card.querySelector('.tcard-img').innerHTML = `<img src="${url}" alt="">`;
+  card.classList.add('ready');
+  card.querySelector('.tcard-pick').textContent = '选这张 →';
+  card.addEventListener('click', () => chooseTriple(url));
+}
+
+function failTripleCard(cards, i) {
+  const card = cards[i];
+  if (!card) return;
+  card.classList.add('failed');
+  card.querySelector('.tcard-pick').textContent = '失败';
+}
+
+/** 选定一张：进入主展示，后续四视图 + 3D 都用这一张 */
+function chooseTriple(url) {
+  const selectedIndex = state.currentCandidates.findIndex((item) => item?.url === url);
+  const selected = state.currentCandidates[selectedIndex];
+  state.tried = true;
+  state.resultImageUrl = url;
+  state.resultImageBlob = selected?.blob || null;
+  state.resultPrompt = ($('#promptInput').value || '').trim();
+  state.threeD = false;
+  state.modelUrl = null;
+  state.modelBlob = null;
+  state.modelPreviewUrl = null;
+  state.modelIsReal = false;
+  state.modelStatus = 'idle';
+
+  state.pending = false;
+  showTriple(false);
+  showResult(url);
+  showDl('#dlImage', true);
+  showDl('#dlModel', false);
+  revealThreeDButton();
+  showStageCta(true);
+  syncControls();
+
+  const promptText = ($('#promptInput').value || '').trim();
+  patchHistoryRecord(state.historyId, {
+    selectedIndex,
+    status: 'selected',
+    modelUrl: null,
+    modelBlob: null,
+    modelPreviewUrl: null,
+    modelIsReal: false,
+    modelStatus: 'idle',
+  }).catch((err) => console.warn('[history] 保存选择失败', err));
+  renderAIComment(promptText || '换装');
+  setStatus('已选定这张 · 可继续微调，或主动生成 360° 3D 展示');
+}
+
+/**
+ * 同一段描述跑三次，给出三种可能让用户挑（抽卡）。
+ * 风格由用户的描述决定，这里只负责多给几个候选，不擅自换风格。
+ */
+async function runTriple(promptText) {
+  if (state.busy) return;
+
+  // 没有底图时自动载入内置示例，避免出现点了就报错的按钮
+  if (!state.personFile && !state.personDataUrl) {
+    setStatus('正在载入内置示例角色…');
+    try {
+      const presetData = await urlToBase64(PRESET_IMG_URL);
+      state.personFile = null;
+      state.personDataUrl = presetData;
+      boxPerson.classList.add('has-image');
+      prevPerson.src = PRESET_IMG_URL;
+      syncHierarchy();
+    } catch (err) {
+      setStatus('示例角色载入失败，请上传自己的底图');
+      return;
+    }
+  }
+
+  const personData = await getPersonDataUrl();
+  if (!personData) {
+    setStatus('角色底图读取失败');
+    return;
+  }
+
+  const text = String(promptText || '').trim();
+  if (!text) {
+    setStatus('请先填写换装描述');
+    return;
+  }
+
+  // 先建立历史草稿，再锁定控件；整个过程中不会触发任何文件下载。
+  const historyId = createHistoryDraft(text, personData);
+  state.busy = true;
+  state.pending = false;
+  syncControls();
+
+  const badge = $('#stageBadge');
+  badge.textContent = '3 Candidates';
+  badge.classList.add('live');
+
+  // 新一批开始：清掉上一轮的 3D 与下载入口
+  state.tried = false;
+  showDl('#dlModel', false);
+  showDl('#dlImage', false);
+  showStageCta(false);
+  state.modelUrl = null;
+  state.modelBlob = null;
+  state.modelPreviewUrl = null;
+  state.modelIsReal = false;
+  state.modelStatus = 'idle';
+  setTopProgress(null);
+
+  showTriple(true);
+  const cards = buildTripleCards();
+  setStatus('同一描述生成三种可能…');
+
+  try {
+    let done = 0;
+    const results = await Promise.all(
+      VARIANT_LABELS.map(async (_label, i) => {
+        try {
+          const resp = await fetch(getApiUrl('/api/tryon'), {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ image_base64: personData, prompt: text }),
+          });
+          const data = await resp.json();
+          if (!resp.ok || !data || !data.success || !data.image_url) {
+            throw new Error((data && data.error) || 'failed');
+          }
+          state.currentCandidates[i] = { url: data.image_url, blob: null };
+          fillTripleCard(cards, i, data.image_url);
+          done += 1;
+          setStatus(`已出 ${done}/3 张 · 同一描述的不同可能`);
+          return data.image_url;
+        } catch (err) {
+          failTripleCard(cards, i);
+          console.warn('[variants] 第', i + 1, '张失败：', err.message);
+          return null;
+        }
+      }),
+    );
+
+    const okCount = results.filter(Boolean).length;
+    if (!okCount) {
+      showTriple(false);
+      badge.textContent = 'Error';
+      badge.classList.remove('live');
+      await deleteHistoryRecord(historyId);
+      if (state.historyId === historyId) state.historyId = null;
+      setStatus('三张都没出来，检查网络或稍后重试');
+      return;
+    }
+
+    await patchHistoryRecord(historyId, { status: 'ready', candidates: state.currentCandidates });
+    cacheHistoryCandidates(historyId, state.currentCandidates.map((item) => item ? { ...item } : null))
+      .catch((err) => console.warn('[history] 图片缓存失败', err));
+
+    // 有结果但还没选：锁住「开始换装」，避免着急时连点又抽一批
+    state.pending = !state.tried;
+    setStatus(state.tried
+      ? `已出 ${okCount} 张 · 当前选择已保留，可继续微调或生成 3D`
+      : `已出 ${okCount} 张 · 点一张选定，下方会出现「生成 3D」`);
+  } finally {
+    state.busy = false;
+    syncControls();
+  }
+}
+$('#stageCta').addEventListener('click', () => {
+  showStageCta(false);
+  $('#btn360').click();
+});
+
+$('#tripleClose').addEventListener('click', () => {
+  if (state.busy) return;
+  state.pending = false;
+  showTriple(false);
+  syncControls();
+  if (state.tried) setStatus('已保留当前结果 · 可继续操作');
+  else setStatus('等待素材输入');
+});
+
+/* =========================================================
+   一键体验
+========================================================= */
+async function runPreset(kind) {
+  if (state.busy) {
+    setStatus('正在生成中，请稍候…');
+    return;
+  }
+
+  const promptText = kind === 'cyber' 
+    ? '穿着赛博朋克机甲服，霓虹光带与金属质感' 
+    : '穿着飘逸的古风汉服，发髻与流苏点缀';
+
+  setStatus('正在加载并解析预设图…');
+  
+  boxPerson.classList.add('has-image');
+  prevPerson.src = PRESET_IMG_URL;
+  $('#promptInput').value = promptText;
+
+  try {
+    const base64Data = await urlToBase64(PRESET_IMG_URL);
+    state.personFile = null;
+    state.personDataUrl = base64Data;
+    syncHierarchy();
+    // 进来的人最想看的是「同一角色能有多少种样子」，所以直接给三套
+    await runTriple(promptText);
+  } catch (e) {
+    console.error('预设图拉取失败', e);
+    setStatus('⚠ 预设图转 Base64 失败，请检查网络或图片链接是否允许跨域(CORS)。');
+    boxPerson.classList.remove('has-image');
+    prevPerson.removeAttribute('src');
+  }
+}
+
+$('#presetOne').addEventListener('click', () => runPreset('gufeng'));
+
+/* 首屏主操作：与左栏按钮同一个动作，方便"不想思考"的人直接点 */
+$('#heroTry').addEventListener('click', () => runPreset('gufeng'));
+$('#heroUpload').addEventListener('click', () => {
+  $('#filePerson').click();
+  const box = $('#boxPerson');
+  if (box) box.scrollIntoView({ behavior: 'smooth', block: 'center' });
+});
+
+/* =========================================================
+   3D 生成流程
+========================================================= */
+function revealThreeDButton() {
+  const btn = $('#btn360');
+  btn.querySelector('.btn-text').textContent = '生成 360° 3D 展示';
+  syncControls();
+}
+
+let mvSlowTimer = null;
+let progressText = '';
+
+/** 把四视图缩略图挂到进度卡上 */
+function setStageViews(views) {
+  const box = $('#mvViews');
+  if (!box) return;
+  const list = ['front', 'left', 'back', 'right']
+    .map((k) => views && views[k])
+    .filter(Boolean);
+  if (!list.length) {
+    box.innerHTML = '';
+    return;
+  }
+  box.innerHTML = list
+    .map((url) => `<img src="${url}" alt="" loading="lazy">`)
+    .join('');
+}
+
+/**
+ * 创建 3D 任务。
+ * 优先走「一张图 → 四视图 → 重建」，失败或关闭时回退到单图重建。
+ * 返回 { taskId, mode: 'multiview' | 'single' | 'demo', message }
+ */
+async function create3DTaskId() {
+  const postJson = (path, payload) =>
+    fetch(getApiUrl(path), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+
+  // ---- 先试多视图链路 ----
+  try {
+    const mvResp = await postJson('/api/multiview', { image_url: state.resultImageUrl });
+    const mv = await mvResp.json();
+
+    if (mv && mv.success && mv.task_id) {
+      setStatus('正在把这张图扩成四视图…');
+      setStageStatus('生成四视图 0%', 0);
+
+      let views = null;
+      for (let i = 0; i < 40; i++) {
+        await wait(3000);
+        let r;
+        try {
+          r = await fetch(getApiUrl(`/api/check3d?task_id=${encodeURIComponent(mv.task_id)}`));
+        } catch (_) {
+          continue;
+        }
+        if (!r.ok) continue;
+
+        const d = await r.json();
+        const st = d.status || '';
+        if (typeof d.progress === 'number') {
+          setTopProgress(d.progress);
+          setStageStatus(`生成四视图 ${d.progress}%`, d.progress);
+        }
+        if (st === 'SUCCEEDED' || st === 'success' || st === 'SUCCESS') {
+          views = d.views || null;
+          break;
+        }
+        if (st === 'FAILED' || st === 'failed') break;
+      }
+
+      if (views && views.front) {
+        setStageViews(views);
+        setStatus('四视图已就绪，开始按四视图重建…');
+        const mResp = await postJson('/api/create3d', { multiview_task_id: mv.task_id });
+        const m = await mResp.json();
+        if (m && m.task_id) {
+          return { taskId: m.task_id, mode: m.demo ? 'demo' : 'multiview', message: m.message };
+        }
+      }
+      console.warn('[3d] 多视图未成功，回退单图重建');
+    }
+  } catch (err) {
+    console.warn('[3d] 多视图链路异常，回退单图：', err);
+  }
+
+  // ---- 回退：单图重建 ----
+  setStageStatus('3D 构建中 0%', 0);
+  const resp = await postJson('/api/create3d', { image_url: state.resultImageUrl });
+  if (!resp.ok) throw new Error('create3d unavailable');
+
+  const data = await resp.json();
+  const taskId = data.task_id || (data.output && data.output.task_id);
+  if (!taskId) throw new Error('no task_id');
+  return { taskId, mode: data.demo ? 'demo' : 'single', message: data.message };
+}
+
+$('#btn360').addEventListener('click', async () => {
+  if (state.threeDLoading) return;
+
+  // 已经拿到过真实模型时，再点只是重新展示，不重复调用（避免白烧额度）
+  if (state.modelIsReal && state.modelUrl) {
+    loadModelIntoViewer(state.modelUrl, state.modelPreviewUrl);
+    setStatus('正在重新载入真实 3D 模型 · 不会重复生成或扣除额度');
+    return;
+  }
+
+  state.threeDLoading = true;
+  state.modelStatus = 'loading';
+  progressText = '';
+  patchHistoryRecord(state.historyId, { modelStatus: 'loading' })
+    .catch((err) => console.warn('[history] 保存 3D 状态失败', err));
+
+  const btn = $('#btn360');
+  const btnText = btn.querySelector('.btn-text');
+  const badge = $('#stageBadge');
+
+  btn.disabled = true;
+  btnText.textContent = '3D 生成中…';
+  badge.textContent = '3D BUILDING';
+  badge.classList.add('live');
+  setStatus('正在提交 3D 生成任务…');
+  syncControls();
+  showStageCta(false);
+  setTopProgress(3);
+  setStageStatus('3D 构建中 0%', 0);
+
+  try {
+    const created = await create3DTaskId();
+    const taskId = created.taskId;
+
+    if (created.mode === 'demo') {
+      throw new Error(created.message || '3D 服务当前不可用，请稍后重试');
+    }
+    if (created.mode === 'multiview') {
+      setStatus('已按四视图重建，正在生成模型…');
+    } else {
+      setStatus('3D 任务已提交，正在生成模型…');
+    }
+
+    // Tripo 图生 3D 通常 30–90 秒，这里最多等 3 分钟
+    const MAX_POLL = 60;
+    const POLL_GAP = 3000;
+    let modelUrl = null;
+    let previewUrl = null;
+
+    for (let i = 0; i < MAX_POLL; i++) {
+      await wait(POLL_GAP);
+      setStatus(`3D 构建中… ${progressText} 已等待 ${(i + 1) * 3} 秒`);
+
+      let checkResp;
+      try {
+        const checkUrl = getApiUrl(`/api/check3d?task_id=${encodeURIComponent(taskId)}`);
+        checkResp = await fetch(checkUrl);
+      } catch (_) {
+        continue;
+      }
+      if (!checkResp.ok) continue;
+
+      const checkData = await checkResp.json();
+      if (checkData.demo) throw new Error(checkData.message || '3D 服务当前不可用');
+      const status = checkData.status || (checkData.output && checkData.output.task_status);
+
+      if (typeof checkData.progress === 'number') {
+        progressText = `${checkData.progress}% ·`;
+        setTopProgress(checkData.progress);
+        setStageStatus(`3D 构建中 ${checkData.progress}%`, checkData.progress);
+      }
+
+      if (status === 'SUCCEEDED' || status === 'success' || status === 'SUCCESS') {
+        modelUrl = checkData.model_url || (checkData.output && checkData.output.model_url);
+        previewUrl = checkData.preview_url || null;
+        if (!modelUrl) throw new Error('no model_url');
+        break;
+      }
+      if (status === 'FAILED' || status === 'failed') {
+        throw new Error(checkData.message || '3D 任务失败');
+      }
+    }
+
+    if (!modelUrl) throw new Error('3D 任务超时');
+
+    state.threeD = true;
+    state.modelUrl = modelUrl;
+    state.modelBlob = null;
+    state.modelPreviewUrl = previewUrl;
+    state.modelIsReal = true;
+    state.modelStatus = 'ready';
+    setTopProgress(100);
+    patchHistoryRecord(state.historyId, {
+      modelUrl,
+      modelPreviewUrl: previewUrl,
+      modelIsReal: true,
+      modelStatus: 'ready',
+    }).catch((err) => console.warn('[history] 保存 3D 记录失败', err));
+
+    // 只在内存/浏览器数据库缓存，是否下载为文件始终由用户主动决定。
+    const completedHistoryId = state.historyId;
+    prefetchModelBlob(modelUrl).then(async (blob) => {
+      if (blob) {
+        if (state.modelUrl === modelUrl) state.modelBlob = blob;
+        await patchHistoryRecord(completedHistoryId, { modelBlob: blob });
+      }
+      if (state.modelUrl === modelUrl) showDl('#dlModel', true);
+    }).catch((err) => console.warn('[history] 模型缓存失败', err));
+
+    loadModelIntoViewer(modelUrl, previewUrl);
+    setStatus('真实 3D 模型加载中…');
+  } catch (err) {
+    console.warn('[3d] generation failed:', err);
+    state.threeD = false;
+    state.modelUrl = null;
+    state.modelBlob = null;
+    state.modelPreviewUrl = null;
+    state.modelIsReal = false;
+    state.modelStatus = 'failed';
+    showDl('#dlModel', false);
+    showResult(state.resultImageUrl);
+    $('#stageBadge').textContent = '3D FAILED';
+    $('#stageBadge').classList.remove('live');
+    patchHistoryRecord(state.historyId, {
+      modelUrl: null,
+      modelBlob: null,
+      modelPreviewUrl: null,
+      modelIsReal: false,
+      modelStatus: 'failed',
+      modelError: err.message,
+    }).catch((historyErr) => console.warn('[history] 保存失败状态出错', historyErr));
+    setStatus(`真实 3D 生成未成功（${err.message}）· 已保留换装图，可点击重试；不会用演示模型冒充`);
+  } finally {
+    state.threeDLoading = false;
+    setTopProgress(null);
+    btnText.textContent = state.modelIsReal
+      ? '查看已生成 3D'
+      : (state.modelStatus === 'failed' ? '重试 3D 生成' : '生成 360° 3D 展示');
+    syncControls();
+  }
+});
+
+// 等 model-viewer 自定义元素注册完成；没注册的话设置 src 不会有任何反应
+async function ensureModelViewerReady(timeoutMs = 8000) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (window.customElements && customElements.get('model-viewer')) return true;
+    await wait(250);
+  }
+  return false;
+}
+
+async function loadModelIntoViewer(url, previewUrl = null) {
+  const mv = $('#mv');
+  const mvLoading = $('#mvLoading');
+  const placeholder = $('#placeholder');
+  const aiResult = $('#aiResult');
+  const badge = $('#stageBadge');
+
+  const viewerReady = await ensureModelViewerReady();
+  if (!viewerReady) {
+    mvLoading.classList.add('hidden');
+    badge.textContent = '3D ERROR';
+    badge.classList.remove('live');
+    setStatus('3D 展示组件没能加载（网络问题）· 请刷新页面后重试');
+    return;
+  }
+
+  placeholder.classList.add('fade-out');
+  setTimeout(() => placeholder.classList.add('hidden'), 460);
+
+  badge.textContent = state.modelIsReal ? 'REAL 3D LIVE' : '3D PREVIEW';
+  badge.classList.toggle('live', state.modelIsReal);
+
+  const reveal = () => {
+    clearTimeout(mvSlowTimer);
+    aiResult.classList.add('hidden');
+    mv.classList.remove('hidden');
+    setStageStatus(null);
+    setTopProgress(null);
+    setStatus('真实 3D 展示已就绪 · 拖拽旋转 / 双指缩放');
+  };
+
+  // 同一个地址且已经加载完成时浏览器不会再触发 load 事件，直接显示，避免白等
+  if (mv.dataset.src === url && mv.loaded) {
+    reveal();
+    return;
+  }
+
+  // 不用 display:none 藏起来：加载提示层盖在它上面就行。
+  // 某些浏览器里 display:none 的 model-viewer 不会触发 load，会让人误以为"永远在载入"
+  mv.classList.remove('hidden');
+  mvLoading.classList.remove('hidden');
+
+  setStageStatus('正在载入 3D 模型 0%', 0);
+
+  // model-viewer 会在下载过程中持续抛 progress，用它显示真实百分比
+  mv.addEventListener('progress', (e) => {
+    const p = Math.round((e.detail && e.detail.totalProgress ? e.detail.totalProgress : 0) * 100);
+    setStageStatus(`正在载入 3D 模型 ${p}%`, p);
+  });
+
+  mv.dataset.src = url;
+
+  mv.addEventListener('load', reveal, { once: true });
+  mv.addEventListener('error', () => {
+    clearTimeout(mvSlowTimer);
+    mvLoading.classList.add('hidden');
+    badge.textContent = '3D LOAD ERROR';
+    badge.classList.remove('live');
+    // Tripo 的模型链接有时不带 CORS 头，model-viewer 拉不到时退化成静态预览图
+    if (previewUrl) {
+      mv.classList.add('hidden');
+      aiResult.classList.remove('hidden');
+      aiResult.onload = () => aiResult.classList.add('show');
+      aiResult.src = previewUrl;
+      setStatus('3D 模型拉取失败（跨域限制）· 已改为显示模型预览图');
+    } else {
+      setStatus('3D 模型加载失败，请检查网络后重试');
+    }
+  }, { once: true });
+
+  mv.src = url;
+
+  // 高模加载可能较慢；超时就明确提示，不再自动替换为与角色无关的演示模型。
+  clearTimeout(mvSlowTimer);
+  mvSlowTimer = setTimeout(() => {
+    if (mv.loaded || mv.dataset.src !== url) return;
+    mvLoading.classList.add('hidden');
+    badge.textContent = '3D LOAD SLOW';
+    badge.classList.remove('live');
+    setStatus('真实 3D 模型加载较慢 · 可继续等待、刷新后从历史恢复，或主动下载模型');
+  }, 90000);
+}
+
+/* =========================================================
+   造型调整与主动导出
+   不做未经验证的“AI 看图点评”，只展示真实设定和可执行操作。
+========================================================= */
+const REFINE_PRESETS = {
+  color: '保持角色面部、发型、体型、服装版型和整体构图一致，只调整服装配色，其他细节尽量不变',
+  material: '保持角色面部、发型、体型、服装版型和整体构图一致，只调整服装材质与质感，其他细节尽量不变',
+  accessories: '保持角色面部、发型、体型和整体构图一致，减少不必要的配饰，让造型更简洁',
+};
+
+function renderAIComment(promptText) {
+  state.typingToken += 1;
+  const body = $('#aiBody');
+  body.innerHTML = '';
+
+  const rows = [
+    { tag: '当前设定', text: promptText || '换装' },
+    { tag: '微调方式', text: '以下操作只会载入当前作品并修改描述，确认后仍需主动点击「开始换装」，不会自动消耗额度。' },
+  ];
+  rows.forEach((item) => {
+    const row = document.createElement('div');
+    row.className = 'ai-row done';
+    const tag = document.createElement('span');
+    tag.className = 'ai-tag';
+    tag.textContent = item.tag;
+    const text = document.createElement('span');
+    text.className = 'ai-text';
+    text.textContent = item.text;
+    row.append(tag, text);
+    body.appendChild(row);
+  });
+
+  const actions = document.createElement('div');
+  actions.className = 'refine-actions';
+  const buttons = [
+    ['仅改配色', () => prepareRefinement('color')],
+    ['仅改材质', () => prepareRefinement('material')],
+    ['减少配饰', () => prepareRefinement('accessories')],
+    ['自定义微调', () => prepareRefinement('custom')],
+    ['下载角色卡', downloadCharacterCard],
+  ];
+  buttons.forEach(([label, handler]) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'refine-btn';
+    button.textContent = label;
+    button.addEventListener('click', handler);
+    actions.appendChild(button);
+  });
+  body.appendChild(actions);
+}
+
+async function prepareRefinement(kind) {
+  if (state.busy || state.threeDLoading || !state.resultImageUrl) return;
+  const buttons = Array.from(document.querySelectorAll('.refine-btn'));
+  buttons.forEach((button) => { button.disabled = true; });
+  const sourceUrl = state.resultImageUrl;
+  try {
+    setStatus('正在把当前作品载入为新的微调底图…');
+    const blob = state.resultImageBlob || await fetchAsBlob(sourceUrl);
+    const sourceData = await compressImage(blob);
+    state.personFile = null;
+    state.personDataUrl = sourceData;
+    prevPerson.src = sourceUrl;
+    boxPerson.classList.add('has-image');
+    if (kind !== 'custom') {
+      $('#promptInput').value = REFINE_PRESETS[kind];
+    }
+    syncHierarchy();
+    $('#promptInput').focus();
+    $('#promptInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setStatus('当前作品已设为微调底图 · 确认描述后主动点击「开始换装」，本操作尚未生成新图');
+  } catch (err) {
+    setStatus(`无法载入微调底图：${err.message}。可先从历史恢复后重试`);
+  } finally {
+    buttons.forEach((button) => { button.disabled = false; });
+  }
+}
+
+function imageFromBlob(blob) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('作品图片解码失败'));
+    };
+    img.src = url;
+  });
+}
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 3) {
+  const chars = Array.from(text);
+  let line = '';
+  let lineIndex = 0;
+  for (let i = 0; i < chars.length; i += 1) {
+    const test = line + chars[i];
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, y + lineIndex * lineHeight);
+      line = chars[i];
+      lineIndex += 1;
+      if (lineIndex >= maxLines - 1) {
+        const rest = line + chars.slice(i + 1).join('');
+        let last = rest;
+        while (ctx.measureText(`${last}…`).width > maxWidth && last.length) last = last.slice(0, -1);
+        ctx.fillText(`${last}…`, x, y + lineIndex * lineHeight);
+        return;
+      }
+    } else {
+      line = test;
+    }
+  }
+  if (line) ctx.fillText(line, x, y + lineIndex * lineHeight);
+}
+
+async function downloadCharacterCard() {
+  if (!state.resultImageUrl) return;
+  const buttons = Array.from(document.querySelectorAll('.refine-btn'));
+  buttons.forEach((button) => { button.disabled = true; });
+  try {
+    setStatus('正在准备角色卡，完成后才会开始下载…');
+    const blob = state.resultImageBlob || await fetchAsBlob(state.resultImageUrl);
+    const img = await imageFromBlob(blob);
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 1500;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('浏览器不支持角色卡绘制');
+
+    ctx.fillStyle = '#FAF8F2';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#1A1815';
+    ctx.font = '500 42px "Microsoft YaHei", sans-serif';
+    ctx.fillText('次元造物', 60, 78);
+    ctx.fillStyle = '#6E6759';
+    ctx.font = '20px monospace';
+    ctx.fillText('CHARACTER ATELIER', 60, 116);
+    ctx.textAlign = 'right';
+    ctx.fillText(new Date().toLocaleDateString('zh-CN'), 1140, 82);
+    ctx.textAlign = 'left';
+
+    const area = { x: 60, y: 150, w: 1080, h: 1050 };
+    ctx.fillStyle = '#ECE5D8';
+    ctx.fillRect(area.x, area.y, area.w, area.h);
+    const scale = Math.min(area.w / img.naturalWidth, area.h / img.naturalHeight);
+    const w = img.naturalWidth * scale;
+    const h = img.naturalHeight * scale;
+    ctx.drawImage(img, area.x + (area.w - w) / 2, area.y + (area.h - h) / 2, w, h);
+    ctx.strokeStyle = 'rgba(26,24,21,.22)';
+    ctx.strokeRect(area.x, area.y, area.w, area.h);
+
+    ctx.fillStyle = '#A63D2A';
+    ctx.font = '20px monospace';
+    ctx.fillText('DESIGN PROMPT', 60, 1260);
+    ctx.fillStyle = '#57524A';
+    ctx.font = '26px "Microsoft YaHei", sans-serif';
+    drawWrappedText(ctx, state.resultPrompt || '换装', 60, 1310, 1080, 42, 3);
+    ctx.fillStyle = '#6E6759';
+    ctx.font = '18px "Microsoft YaHei", sans-serif';
+    ctx.fillText('由次元造物生成 · 角色卡仅在你主动点击后下载', 60, 1450);
+
+    const cardBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!cardBlob) throw new Error('角色卡导出失败');
+    await saveBlobOrOpen(cardBlob, `次元造物-角色卡-${stamp()}.png`, null);
+  } catch (err) {
+    setStatus(`角色卡准备失败：${err.message}，未触发下载`);
+  } finally {
+    buttons.forEach((button) => { button.disabled = false; });
+  }
+}
+
+/* =========================================================
+   初始化：连一次后端，把顶部那枚写死的 ONLINE 变成真实状态
+========================================================= */
+async function checkBackend() {
+  const tag = document.getElementById('sysTag');
+  try {
+    const resp = await fetch(`${API_BASE}/api/health`, { cache: 'no-store' });
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) throw new Error('bad health');
+
+    tag.classList.add('online');
+    if (data.api_key_configured) {
+      tag.textContent = 'system online';
+      setStatus('等待素材输入…');
+    } else {
+      tag.textContent = 'server online · 缺 api key';
+      setStatus('后端已连接，但服务端未配置 ALIYUN_API_KEY');
+    }
+  } catch (_) {
+    tag.textContent = 'server offline';
+    tag.classList.remove('online');
+    setStatus(`连不上后端（${API_BASE || location.origin}），请先执行 npm start`);
+  }
+}
+
+setStatus('正在连接后端…');
+refreshHistoryCount();
+checkBackend();
+</script>
+</body>
+</html>
