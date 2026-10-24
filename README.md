@@ -39,7 +39,7 @@
 
 本项目**完全可复现**：无数据库、无私有依赖、无编译步骤。
 所有外部服务均为公开商业 API（阿里云百炼、Tripo），仅需自备密钥即可运行；
-前端不依赖任何第三方 CDN（3D 渲染组件已本地托管），断网环境下页面仍可正常打开。
+前端不依赖任何第三方 CDN：3D 渲染组件与「一键体验」的示例角色图均已本地托管（`public/vendor/` 与 `public/preset/`），断网环境下页面可正常打开，也能点开「一键体验」查看流程。
 
 ### 1. 环境要求
 
@@ -212,6 +212,7 @@ ai-virtual-tryon/
 ├── public/                        # 静态产物（EdgeOne 输出目录）
 │   ├── index.html                 # 单文件前端
 │   ├── models/robot.glb           # 本地演示模型（464KB）
+│   ├── preset/character.jpg       # 「一键体验」示例角色图（本地托管，70KB）
 │   └── vendor/model-viewer.min.js # 本地托管的 3D 组件
 ├── cloud-functions/               # 云函数，文件路径即路由
 │   ├── _lib/                      # 共享核心（不导出 handler，不注册为路由）
@@ -227,6 +228,7 @@ ai-virtual-tryon/
 │       ├── create3d.js            # → /api/create3d
 │       └── check3d.js             # → /api/check3d
 ├── server.js                      # 本地 Express 入口
+├── start.bat                      # Windows 一键启动（查 Node → 装依赖 → 启动）
 ├── edgeone.json                   # 云函数最长执行时间 60s
 └── docs/
     ├── technical-design.md        # 技术文档源文件（Markdown）

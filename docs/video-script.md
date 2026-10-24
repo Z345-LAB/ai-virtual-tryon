@@ -32,10 +32,11 @@
 
 **④ 不要露出密钥**：不开 `.env`、不开控制台、不出现 EdgeOne 后台密钥页。
 
-**⑤ 备好三样素材**（AI 段落要用）：
+**⑤ 备好四样素材**（AI 段落要用）：
 - 代码编辑器，打开 `public/index.html`，定位到 `runTriple` 附近
 - 终端窗口，能跑 `git log --oneline` 与 `git show`
 - 浏览器打开仓库里的 `docs/ai-history/06-variants-and-locks.md`
+- **一份旧版代码**：`git show 4e07a3b^:public/index.html > old-index.html`（展示"锁放错位置"时必须用旧版，当前代码已修好）
 
 **⑥ 浏览器开干净窗口**，地址栏能看到 `aitry.online`。
 
@@ -161,10 +162,20 @@
 
 ### 5:55–6:40　第三轮：一个更隐蔽的 Bug
 
+> ⚠️ **必须展示旧版代码，不要打开当前工作区文件**。这个 Bug 已经修好了，
+> 现在的 `runTriple` 第一行就是 `enterStart()`，直接录当前文件会和口播矛盾（评委会发现"你说的错已经不存在了"）。
+>
+> 取旧版（任选其一）：
+> ```bash
+> git show 4e07a3b^:public/index.html > old-index.html   # 修之前的版本
+> git show 4e07a3b -- public/index.html                  # 只显示这次改动的 diff
+> ```
+> 打开 `old-index.html` 或 diff 视图再录，画面里能清楚看到「await 在上、busy 在下」。
+
 **画面**：
-1. 编辑器里展示 `runTriple` 开头（能看到 `await` 在上、`state.busy = true` 在下）
-2. 用 `git show` 或 diff 展示改前 / 改后
-3. 在画面上把两个 `await` 的位置圈出来
+1. 打开 `old-index.html`（或 diff 视图），展示 `runTriple` 开头
+2. 圈出两个 `await`，再圈出下面那行 `state.busy = true`
+3. 切回当前版本，展示 `enterStart()` 已在第一行（对比"改完之后"）
 
 **口播**：
 

@@ -1624,7 +1624,7 @@ const HISTORY_STORE = 'generations';
 const HISTORY_LIMIT = 10;   // 单条最多约 16MB（3 张 2K 图），10 条约 160MB，避免配额超限
 
 /* 你指定的示例图链接 */
-const PRESET_IMG_URL = 'https://i.postimg.cc/mZq8kJBW/mmexport1792513468133.jpg';
+const PRESET_IMG_URL = '/preset/character.jpg';   // 本地托管：断网也能点「一键体验」
 
 /* 接口地址解析：
    1) 同源部署（http://localhost:3000 或线上域名）→ 直接用相对路径；
@@ -1978,12 +1978,18 @@ function restoreHistoryRecord(record, editMode) {
   state.resultImageUrl = makeSessionObjectUrl(selected.blob) || selected.url;
   state.resultPrompt = record.prompt || '';
   state.tried = true;
-  state.threeD = Boolean(record.modelIsReal && (record.modelBlob || record.modelUrl));
-  state.modelIsReal = state.threeD;
+  // 只有模型 Blob 真的入库了才算「有 3D」。
+  // Tripo 的 modelUrl 5 分钟即过期，靠它冒充可用等于在历史里假装成功，
+  // 与「宁可失败也不冒充」的原则相反。
+  const hasCachedModel = Boolean(record.modelBlob);
+  state.threeD = hasCachedModel;
+  state.modelIsReal = hasCachedModel;
   state.modelBlob = record.modelBlob || null;
-  state.modelUrl = makeSessionObjectUrl(record.modelBlob) || (state.modelIsReal ? record.modelUrl : null);
+  state.modelUrl = makeSessionObjectUrl(record.modelBlob) || null;
   state.modelPreviewUrl = record.modelPreviewUrl || null;
-  state.modelStatus = state.modelIsReal ? 'ready' : (record.modelStatus || 'idle');
+  state.modelStatus = hasCachedModel
+    ? 'ready'
+    : (record.modelIsReal ? 'expired' : (record.modelStatus || 'idle'));
 
   prevPerson.src = record.sourceImage || state.resultImageUrl;
   boxPerson.classList.toggle('has-image', Boolean(record.sourceImage || state.resultImageUrl));
@@ -1991,17 +1997,25 @@ function restoreHistoryRecord(record, editMode) {
   showTriple(false);
   showResult(state.resultImageUrl);
   showDl('#dlImage', true);
-  showDl('#dlModel', Boolean(state.modelIsReal && state.modelUrl));
-  showStageCta(!state.modelIsReal);
-  $('#stageBadge').textContent = 'HISTORY';
+  const modelUsable = Boolean(state.modelIsReal && state.modelUrl);
+  const modelExpired = !modelUsable && record.modelIsReal;
+  showDl('#dlModel', modelUsable);
+  showStageCta(!modelUsable);
+  $('#stageBadge').textContent = modelExpired ? '3D 已过期' : 'HISTORY';
   $('#stageBadge').classList.remove('live');
-  $('#btn360 .btn-text').textContent = state.modelIsReal ? '查看已生成 3D' : '生成 360° 3D 展示';
+  $('#btn360 .btn-text').textContent = modelUsable
+    ? '查看已生成 3D'
+    : (modelExpired ? '重新生成 3D' : '生成 360° 3D 展示');
   renderAIComment(record.prompt || '换装');
   syncControls();
   closeHistory();
-  setStatus(editMode
-    ? '已恢复底图与描述 · 修改后主动点击「开始换装」，不会自动生成'
-    : '已恢复历史作品 · 可继续编辑、生成 3D 或主动下载');
+  if (modelExpired) {
+    setStatus('已恢复换装图 · 3D 模型未缓存（约 40MB 未入库），需重新生成');
+  } else {
+    setStatus(editMode
+      ? '已恢复底图与描述 · 修改后主动点击「开始换装」，不会自动生成'
+      : '已恢复历史作品 · 可继续编辑、生成 3D 或主动下载');
+  }
 
   if (editMode) {
     $('#promptInput').focus();
@@ -2568,9 +2582,19 @@ async function runTriple(promptText) {
     }
   }
 
-  const personData = await getPersonDataUrl();
+  // getPersonDataUrl 内部会 reject（解码失败 / 不支持 Canvas），
+  // 不接住会让 starting 永久为 true，所有按钮变灰、只能刷新页面。
+  let personData = null;
+  try {
+    personData = await getPersonDataUrl();
+  } catch (err) {
+    console.warn('[tryon] 底图读取失败：', err && err.message);
+    setStatus('图片解码失败，请换一张（支持 JPG / PNG / WebP）');
+    leaveStart();
+    return;
+  }
   if (!personData) {
-    setStatus('角色底图读取失败');
+    setStatus('角色底图读取失败，请重新选择图片');
     leaveStart();
     return;
   }
