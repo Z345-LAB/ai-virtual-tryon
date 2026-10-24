@@ -25,10 +25,7 @@ app.get('/api/health', (req, res) => {
   const cfg = getConfig();
   res.json({
     ok: true,
-    model: cfg.model,
     api_key_configured: Boolean(cfg.apiKey),
-    runtime: 'local/express',
-    port: PORT,
     time: new Date().toISOString(),
   });
 });
@@ -39,9 +36,15 @@ app.post(['/api/tryon', '/functions/tryon'], async (req, res) => {
   const { image_base64: imageBase64, prompt } = req.body || {};
   if (!imageBase64) return res.status(400).json({ success: false, error: '缺少 image_base64' });
   if (!prompt) return res.status(400).json({ success: false, error: '缺少 prompt' });
+  if (typeof imageBase64 !== 'string' || imageBase64.length > 24_000_000) {
+    return res.status(413).json({ success: false, error: '图片数据无效或超过大小限制' });
+  }
+  if (typeof prompt !== 'string' || !prompt.trim() || prompt.trim().length > 1000) {
+    return res.status(400).json({ success: false, error: '换装描述需为 1–1000 个字符' });
+  }
 
   try {
-    const result = await generateOutfit({ imageBase64, prompt });
+    const result = await generateOutfit({ imageBase64, prompt: prompt.trim() });
     console.log(`[换装] 成功 ${result.elapsedMs}ms`);
     return res.json({
       success: true,

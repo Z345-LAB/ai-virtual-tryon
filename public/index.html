@@ -132,6 +132,141 @@ body::after{
 .sys.online{ color: var(--ok); }
 .sys.online::before{ opacity: 1; }
 
+.history-toggle{
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 9px;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  font-family: inherit;
+  font-size: 10px;
+  letter-spacing: .08em;
+  cursor: pointer;
+  transition: color .2s, border-color .2s, background .2s;
+}
+.history-toggle:hover{ color: var(--ink); border-color: var(--seal-line); background: var(--seal-soft); }
+.history-toggle span{
+  min-width: 17px;
+  padding: 0 4px;
+  color: var(--seal);
+  font-family: var(--mono);
+  font-size: 9px;
+  text-align: center;
+}
+
+/* ================= 生成历史：仅存浏览器，不触发文件下载 ================= */
+.history-overlay{
+  position: fixed; inset: 0;
+  z-index: 80;
+}
+.history-overlay.hidden{ display: none; }
+.history-backdrop{
+  position: absolute; inset: 0;
+  width: 100%; height: 100%;
+  padding: 0;
+  background: rgba(26,24,21,.28);
+  border: 0;
+  cursor: default;
+  backdrop-filter: blur(2px);
+}
+.history-panel{
+  position: absolute; top: 0; right: 0;
+  width: min(440px, 100%); height: 100%;
+  display: flex; flex-direction: column;
+  background: var(--paper-2);
+  border-left: 1px solid var(--line-2);
+  box-shadow: -24px 0 60px -36px rgba(26,24,21,.65);
+  animation: historyIn .28s cubic-bezier(.16,1,.3,1);
+}
+@keyframes historyIn{ from{ transform: translateX(24px); opacity: 0; } to{ transform: none; opacity: 1; } }
+.history-head{
+  flex: none;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 22px 24px 16px;
+  border-bottom: 1px solid var(--line);
+}
+.history-head h2{ margin: 0; font-size: 17px; font-weight: 500; letter-spacing: .1em; }
+.history-close{
+  padding: 4px 0;
+  color: var(--ink-2);
+  background: none;
+  border: 0;
+  border-bottom: 1px solid var(--line-2);
+  font-family: inherit;
+  font-size: 11px;
+  cursor: pointer;
+}
+.history-note{
+  flex: none;
+  margin: 0;
+  padding: 13px 24px;
+  color: var(--ink-2);
+  background: var(--paper-3);
+  border-bottom: 1px solid var(--line);
+  font-size: 10.5px;
+  line-height: 1.75;
+}
+.history-list{
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column; gap: 12px;
+  padding: 18px 24px 30px;
+  overflow-y: auto;
+}
+.history-empty{
+  margin: auto;
+  padding: 40px 20px;
+  color: var(--ink-3);
+  text-align: center;
+  font-size: 12px;
+  line-height: 1.9;
+}
+.history-item{
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  gap: 14px;
+  padding: 10px;
+  background: var(--raised);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-md);
+}
+.history-thumb{
+  width: 96px; height: 118px;
+  object-fit: cover;
+  background: var(--paper-3);
+  border: 1px solid var(--line);
+}
+.history-content{ min-width: 0; display: flex; flex-direction: column; }
+.history-prompt{
+  display: -webkit-box;
+  margin: 2px 0 6px;
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 11.5px;
+  line-height: 1.6;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.history-meta{
+  color: var(--ink-3);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  letter-spacing: .04em;
+}
+.history-actions{ display: flex; flex-wrap: wrap; gap: 6px; margin-top: auto; padding-top: 10px; }
+.history-actions button{
+  padding: 5px 8px;
+  color: var(--ink-2);
+  background: transparent;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  font-family: inherit;
+  font-size: 9.5px;
+  cursor: pointer;
+}
+.history-actions button:hover{ color: var(--ink); border-color: var(--seal-line); background: var(--seal-soft); }
+.history-actions .history-delete:hover{ color: var(--seal); }
+
 /* ================= 主区 ================= */
 main{
   position: relative; z-index: 1;
@@ -861,6 +996,24 @@ model-viewer.hidden{ display: none; }
   color: var(--ink-2);
   max-width: 64ch;
 }
+.refine-actions{
+  grid-column: 2;
+  display: flex; flex-wrap: wrap; gap: 7px;
+  margin-top: -8px;
+}
+.refine-btn{
+  padding: 7px 10px;
+  color: var(--ink-2);
+  background: var(--raised);
+  border: 1px solid var(--line-2);
+  border-radius: var(--r);
+  font-family: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  transition: color .18s, border-color .18s, background .18s;
+}
+.refine-btn:hover:not(:disabled){ color: var(--ink); border-color: var(--seal-line); background: var(--seal-soft); }
+.refine-btn:disabled{ opacity: .45; cursor: wait; }
 
 /* ================= 页脚 ================= */
 .statusbar{
@@ -1210,6 +1363,7 @@ body.is-busy .desc-input{
   }
   .viewer{ min-height: 52vh; flex: none; }
   .ai-card{ grid-template-columns: 1fr; gap: 10px; }
+  .refine-actions{ grid-column: 1; margin-top: 0; }
   .statusbar{ padding: 0 20px; height: 34px; }
   .rail-note{ margin-top: 12px; }
   .empty{ left: 24px; bottom: 24px; }
@@ -1252,6 +1406,9 @@ body.is-busy .desc-input{
     <p>Atelier — Virtual Character Studio</p>
   </div>
   <div class="topbar-right">
+    <button class="history-toggle" id="btnHistory" type="button" aria-controls="historyOverlay" aria-expanded="false">
+      生成历史 <span id="historyCount">0</span>
+    </button>
     <span class="meta">WAN 2.7 / TRIPO V3</span>
     <span class="sys" id="sysTag">system offline</span>
   </div>
@@ -1279,7 +1436,7 @@ body.is-busy .desc-input{
           <span class="preset-tag">古风</span>
         </button>
         <div class="upload-box" id="boxPerson" style="margin-top:10px">
-          <input type="file" accept="image/*" id="filePerson" hidden>
+          <input type="file" accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp" id="filePerson" hidden>
           <div class="upload-inner">
             <svg viewBox="0 0 24 24" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="8" r="3.6"></circle>
@@ -1305,8 +1462,9 @@ body.is-busy .desc-input{
           id="promptInput"
           class="desc-input"
           rows="3"
+          maxlength="1000"
           placeholder="例如：剪裁利落的黑色长风衣，金属扣饰"></textarea>
-        <p class="hint">支持 JPG / PNG。建议单人、清晰、正面的角色立绘。</p>
+        <p class="hint">支持 JPG / PNG / WEBP，单张不超过 12 MB。建议单人、清晰、正面的角色立绘。</p>
       </div>
     </div>
 
@@ -1419,17 +1577,32 @@ body.is-busy .desc-input{
     <div class="ai-card">
       <div class="ai-head">
         <span class="ai-icon"></span>
-        <h3>AI 点评</h3>
-        <span class="ai-sub">Review</span>
+        <h3>造型调整</h3>
+        <span class="ai-sub">Next Step</span>
       </div>
       <div class="ai-body" id="aiBody">
-        <p class="ai-empty">上传角色底图并填写描述后开始，这里会列出本次换装的要点。</p>
+        <p class="ai-empty">选定作品后，可以基于当前结果继续微调，或主动下载角色卡。</p>
       </div>
     </div>
 
   </section>
 
 </main>
+
+<!-- 历史只保存到浏览器 IndexedDB；查看、编辑和下载均由用户主动选择 -->
+<div class="history-overlay hidden" id="historyOverlay">
+  <button class="history-backdrop" id="historyBackdrop" type="button" aria-label="关闭生成历史"></button>
+  <aside class="history-panel" role="dialog" aria-modal="true" aria-labelledby="historyTitle">
+    <div class="history-head">
+      <h2 id="historyTitle">生成历史</h2>
+      <button class="history-close" id="historyClose" type="button">关闭</button>
+    </div>
+    <p class="history-note">记录仅保存在当前浏览器，最多保留 20 条，不会自动下载文件。清理浏览器数据会删除记录；图片与模型只有主动点击下载才会保存到设备。</p>
+    <div class="history-list" id="historyList">
+      <p class="history-empty">还没有生成记录。<br>完成一次换装后会出现在这里。</p>
+    </div>
+  </aside>
+</div>
 
 <footer class="statusbar">
   <span class="pulse"></span>
@@ -1440,9 +1613,12 @@ body.is-busy .desc-input{
 /* =========================================================
    配置与状态
 ========================================================= */
-const DEMO_MODEL_URL = '/models/robot.glb'; // 本地托管，464KB，不再依赖 modelviewer.dev 的 2.8MB 外链
 const TRYON_TIMEOUT_MS = 90000; // 后端走同步调用，通常 10–20 秒；云函数最长 60 秒，这里留余量
 const BACKEND_PORT = '3000';     // 与 .env 里的 PORT 保持一致
+const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
+const HISTORY_DB_NAME = 'ciyuan-atelier';
+const HISTORY_STORE = 'generations';
+const HISTORY_LIMIT = 20;
 
 /* 你指定的示例图链接 */
 const PRESET_IMG_URL = 'https://i.postimg.cc/mZq8kJBW/mmexport1792513468133.jpg';
@@ -1464,14 +1640,22 @@ const API_BASE = (() => {
 
 const state = {
   personFile: null,
-  personDataUrl: null, 
+  personDataUrl: null,
   busy: false,
   tried: false,
   threeD: false,
   threeDLoading: false,
   resultImageUrl: null,
+  resultImageBlob: null,
+  resultPrompt: '',
   modelUrl: null,
   modelBlob: null,
+  modelPreviewUrl: null,
+  modelIsReal: false,
+  modelStatus: 'idle',
+  currentCandidates: [],
+  historyId: null,
+  sessionObjectUrls: [],
   pending: false,
   typingToken: 0
 };
@@ -1479,6 +1663,348 @@ const state = {
 const $ = (sel) => document.querySelector(sel);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 const setStatus = (text) => { $('#status').textContent = text; };
+
+/* =========================================================
+   生成历史（IndexedDB）
+   仅写入浏览器数据库，不调用<a download>，不会自动保存文件到设备。
+========================================================= */
+let historyDBPromise = null;
+let historyWriteQueue = Promise.resolve();
+let historyListObjectUrls = [];
+
+function openHistoryDB() {
+  if (historyDBPromise) return historyDBPromise;
+  historyDBPromise = new Promise((resolve, reject) => {
+    if (!window.indexedDB) {
+      reject(new Error('当前浏览器不支持 IndexedDB'));
+      return;
+    }
+    const request = indexedDB.open(HISTORY_DB_NAME, 1);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(HISTORY_STORE)) {
+        const store = db.createObjectStore(HISTORY_STORE, { keyPath: 'id' });
+        store.createIndex('createdAt', 'createdAt');
+      }
+    };
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('无法打开生成历史'));
+    request.onblocked = () => reject(new Error('生成历史被其他页面占用'));
+  });
+  return historyDBPromise;
+}
+
+function requestResult(request) {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error || new Error('生成历史读写失败'));
+  });
+}
+
+function transactionDone(tx) {
+  return new Promise((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error || new Error('生成历史事务失败'));
+    tx.onabort = () => reject(tx.error || new Error('生成历史事务已取消'));
+  });
+}
+
+function enqueueHistoryWrite(operation) {
+  const run = historyWriteQueue.then(operation);
+  historyWriteQueue = run.catch((err) => console.warn('[history]', err));
+  return run;
+}
+
+async function getHistoryRecord(id) {
+  const db = await openHistoryDB();
+  return requestResult(db.transaction(HISTORY_STORE, 'readonly').objectStore(HISTORY_STORE).get(id));
+}
+
+async function getAllHistoryRecords() {
+  const db = await openHistoryDB();
+  const records = await requestResult(db.transaction(HISTORY_STORE, 'readonly').objectStore(HISTORY_STORE).getAll());
+  return records.sort((a, b) => b.createdAt - a.createdAt);
+}
+
+async function pruneHistory(db) {
+  const tx = db.transaction(HISTORY_STORE, 'readwrite');
+  const store = tx.objectStore(HISTORY_STORE);
+  const records = await requestResult(store.getAll());
+  records.sort((a, b) => b.createdAt - a.createdAt);
+  records.slice(HISTORY_LIMIT).forEach((record) => store.delete(record.id));
+  await transactionDone(tx);
+}
+
+function writeHistoryRecord(record) {
+  return enqueueHistoryWrite(async () => {
+    const db = await openHistoryDB();
+    const tx = db.transaction(HISTORY_STORE, 'readwrite');
+    tx.objectStore(HISTORY_STORE).put(record);
+    await transactionDone(tx);
+    await pruneHistory(db);
+    await refreshHistoryCount();
+    if (!$('#historyOverlay').classList.contains('hidden')) await renderHistoryList();
+  });
+}
+
+function patchHistoryRecord(id, patch) {
+  if (!id) return Promise.resolve();
+  return enqueueHistoryWrite(async () => {
+    const db = await openHistoryDB();
+    const tx = db.transaction(HISTORY_STORE, 'readwrite');
+    const store = tx.objectStore(HISTORY_STORE);
+    const record = await requestResult(store.get(id));
+    if (!record) return;
+    store.put({ ...record, ...patch, updatedAt: Date.now() });
+    await transactionDone(tx);
+    await refreshHistoryCount();
+    if (!$('#historyOverlay').classList.contains('hidden')) await renderHistoryList();
+  });
+}
+
+function deleteHistoryRecord(id) {
+  return enqueueHistoryWrite(async () => {
+    const db = await openHistoryDB();
+    const tx = db.transaction(HISTORY_STORE, 'readwrite');
+    tx.objectStore(HISTORY_STORE).delete(id);
+    await transactionDone(tx);
+    await refreshHistoryCount();
+    await renderHistoryList();
+  });
+}
+
+function createHistoryDraft(prompt, sourceImage) {
+  const id = window.crypto?.randomUUID?.() || `work-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  state.historyId = id;
+  state.currentCandidates = VARIANT_LABELS.map(() => null);
+  state.resultImageBlob = null;
+  state.modelStatus = 'idle';
+  const now = Date.now();
+  writeHistoryRecord({
+    id,
+    createdAt: now,
+    updatedAt: now,
+    prompt,
+    sourceImage,
+    candidates: state.currentCandidates,
+    selectedIndex: -1,
+    modelUrl: null,
+    modelBlob: null,
+    modelPreviewUrl: null,
+    modelIsReal: false,
+    modelStatus: 'idle',
+    status: 'generating',
+  }).catch((err) => console.warn('[history] 无法保存生成记录', err));
+  return id;
+}
+
+async function cacheHistoryCandidates(historyId, candidatesToCache) {
+  const candidates = await Promise.all(candidatesToCache.map(async (candidate) => {
+    if (!candidate?.url || candidate.blob) return candidate;
+    try {
+      return { ...candidate, blob: await fetchAsBlob(candidate.url) };
+    } catch (_) {
+      return candidate;
+    }
+  }));
+  if (state.historyId === historyId) {
+    state.currentCandidates = candidates;
+    const selected = candidates[state.currentCandidates.findIndex((item) => item?.url === state.resultImageUrl)];
+    if (selected?.blob) state.resultImageBlob = selected.blob;
+  }
+  await patchHistoryRecord(historyId, { candidates });
+}
+
+function historyThumb(record) {
+  const selected = record.candidates?.[record.selectedIndex];
+  return selected || record.candidates?.find(Boolean) || null;
+}
+
+function makeSessionObjectUrl(blob) {
+  if (!blob) return null;
+  const url = URL.createObjectURL(blob);
+  state.sessionObjectUrls.push(url);
+  return url;
+}
+
+function releaseSessionObjectUrls() {
+  state.sessionObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  state.sessionObjectUrls = [];
+}
+
+async function refreshHistoryCount() {
+  try {
+    const records = await getAllHistoryRecords();
+    $('#historyCount').textContent = String(records.length);
+  } catch (err) {
+    console.warn('[history] 无法读取记录数量', err);
+  }
+}
+
+function formatHistoryTime(timestamp) {
+  return new Intl.DateTimeFormat('zh-CN', {
+    month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
+  }).format(new Date(timestamp));
+}
+
+async function renderHistoryList() {
+  const list = $('#historyList');
+  historyListObjectUrls.forEach((url) => URL.revokeObjectURL(url));
+  historyListObjectUrls = [];
+  list.innerHTML = '';
+
+  let records;
+  try {
+    records = await getAllHistoryRecords();
+  } catch (err) {
+    const empty = document.createElement('p');
+    empty.className = 'history-empty';
+    empty.textContent = '生成历史不可用，请检查浏览器存储权限。';
+    list.appendChild(empty);
+    return;
+  }
+
+  $('#historyCount').textContent = String(records.length);
+  if (!records.length) {
+    const empty = document.createElement('p');
+    empty.className = 'history-empty';
+    empty.textContent = '还没有生成记录。完成一次换装后会出现在这里。';
+    list.appendChild(empty);
+    return;
+  }
+
+  records.forEach((record) => {
+    const item = document.createElement('article');
+    item.className = 'history-item';
+    const thumb = historyThumb(record);
+    const img = document.createElement('img');
+    img.className = 'history-thumb';
+    img.alt = '历史作品缩略图';
+    if (thumb?.blob) {
+      img.src = URL.createObjectURL(thumb.blob);
+      historyListObjectUrls.push(img.src);
+    } else if (thumb?.url) {
+      img.src = thumb.url;
+    }
+
+    const content = document.createElement('div');
+    content.className = 'history-content';
+    const prompt = document.createElement('p');
+    prompt.className = 'history-prompt';
+    prompt.textContent = record.prompt || '未填写描述';
+    const meta = document.createElement('span');
+    meta.className = 'history-meta';
+    const modelLabel = record.modelIsReal ? ' · 含 3D' : '';
+    const statusLabel = record.status === 'generating' ? ' · 未完成' : '';
+    meta.textContent = `${formatHistoryTime(record.createdAt)}${modelLabel}${statusLabel}`;
+    const actions = document.createElement('div');
+    actions.className = 'history-actions';
+
+    const viewBtn = document.createElement('button');
+    viewBtn.type = 'button';
+    viewBtn.textContent = '查看';
+    viewBtn.disabled = !thumb;
+    viewBtn.addEventListener('click', () => restoreHistoryRecord(record, false));
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.textContent = '再次编辑';
+    editBtn.disabled = !record.sourceImage;
+    editBtn.addEventListener('click', () => restoreHistoryRecord(record, true));
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'history-delete';
+    deleteBtn.textContent = '删除';
+    deleteBtn.addEventListener('click', async () => {
+      if ((state.busy || state.threeDLoading) && state.historyId === record.id) {
+        setStatus('当前作品正在生成，请完成后再删除记录');
+        return;
+      }
+      if (!window.confirm('确定删除这条生成历史吗？此操作只会删除浏览器中的记录。')) return;
+      await deleteHistoryRecord(record.id);
+      if (state.historyId === record.id) state.historyId = null;
+    });
+
+    actions.append(viewBtn, editBtn, deleteBtn);
+    content.append(prompt, meta, actions);
+    item.append(img, content);
+    list.appendChild(item);
+  });
+}
+
+function openHistory() {
+  $('#historyOverlay').classList.remove('hidden');
+  $('#btnHistory').setAttribute('aria-expanded', 'true');
+  renderHistoryList();
+  $('#historyClose').focus();
+}
+
+function closeHistory() {
+  $('#historyOverlay').classList.add('hidden');
+  $('#btnHistory').setAttribute('aria-expanded', 'false');
+  $('#btnHistory').focus();
+}
+
+function restoreHistoryRecord(record, editMode) {
+  if (state.busy || state.threeDLoading) {
+    closeHistory();
+    setStatus('当前任务仍在生成，请完成后再恢复历史作品');
+    return;
+  }
+  const selected = historyThumb(record);
+  if (!selected) {
+    setStatus('这条记录还没有可查看的作品');
+    return;
+  }
+
+  releaseSessionObjectUrls();
+  state.busy = false;
+  state.pending = false;
+  state.threeDLoading = false;
+  state.historyId = record.id;
+  state.currentCandidates = record.candidates || [];
+  state.personFile = null;
+  state.personDataUrl = record.sourceImage || null;
+  state.resultImageBlob = selected.blob || null;
+  state.resultImageUrl = makeSessionObjectUrl(selected.blob) || selected.url;
+  state.resultPrompt = record.prompt || '';
+  state.tried = true;
+  state.threeD = Boolean(record.modelIsReal && (record.modelBlob || record.modelUrl));
+  state.modelIsReal = state.threeD;
+  state.modelBlob = record.modelBlob || null;
+  state.modelUrl = makeSessionObjectUrl(record.modelBlob) || (state.modelIsReal ? record.modelUrl : null);
+  state.modelPreviewUrl = record.modelPreviewUrl || null;
+  state.modelStatus = state.modelIsReal ? 'ready' : (record.modelStatus || 'idle');
+
+  prevPerson.src = record.sourceImage || state.resultImageUrl;
+  boxPerson.classList.toggle('has-image', Boolean(record.sourceImage || state.resultImageUrl));
+  $('#promptInput').value = record.prompt || '';
+  showTriple(false);
+  showResult(state.resultImageUrl);
+  showDl('#dlImage', true);
+  showDl('#dlModel', Boolean(state.modelIsReal && state.modelUrl));
+  showStageCta(!state.modelIsReal);
+  $('#stageBadge').textContent = 'HISTORY';
+  $('#stageBadge').classList.remove('live');
+  $('#btn360 .btn-text').textContent = state.modelIsReal ? '查看已生成 3D' : '生成 360° 3D 展示';
+  renderAIComment(record.prompt || '换装');
+  syncControls();
+  closeHistory();
+  setStatus(editMode
+    ? '已恢复底图与描述 · 修改后主动点击「开始换装」，不会自动生成'
+    : '已恢复历史作品 · 可继续编辑、生成 3D 或主动下载');
+
+  if (editMode) {
+    $('#promptInput').focus();
+    if (window.innerWidth <= 900) $('#promptInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}
+
+$('#btnHistory').addEventListener('click', openHistory);
+$('#historyClose').addEventListener('click', closeHistory);
+$('#historyBackdrop').addEventListener('click', closeHistory);
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape' && !$('#historyOverlay').classList.contains('hidden')) closeHistory();
+});
 
 /* 首屏层级：没有底图时，「一键体验」是唯一的主操作 */
 function syncHierarchy() {
@@ -1602,7 +2128,10 @@ async function downloadImage() {
 }
 
 async function downloadModel() {
-  if (!state.modelBlob && !state.modelUrl) return;
+  if (!state.modelIsReal || (!state.modelBlob && !state.modelUrl)) {
+    setStatus('当前没有可下载的真实 3D 模型');
+    return;
+  }
   const btn = $('#dlModel');
   btn.disabled = true;
   setStatus('正在准备 3D 模型…');
@@ -1718,8 +2247,14 @@ boxPerson.addEventListener('drop', (e) => {
 });
 
 function loadPersonFile(file) {
-  if (!file.type.startsWith('image/')) {
-    setStatus('请选择图片文件（JPG / PNG / WEBP）');
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp'];
+  if (!allowedTypes.includes(file.type)) {
+    setStatus('请选择 JPG / PNG / WEBP 图片');
+    return;
+  }
+  if (file.size > MAX_UPLOAD_BYTES) {
+    setStatus('图片超过 12 MB，请压缩后再上传');
+    inputPerson.value = '';
     return;
   }
   // 释放上一张预览图的 object URL，避免内存堆积
@@ -1944,12 +2479,18 @@ function failTripleCard(cards, i) {
 
 /** 选定一张：进入主展示，后续四视图 + 3D 都用这一张 */
 function chooseTriple(url) {
+  const selectedIndex = state.currentCandidates.findIndex((item) => item?.url === url);
+  const selected = state.currentCandidates[selectedIndex];
   state.tried = true;
   state.resultImageUrl = url;
+  state.resultImageBlob = selected?.blob || null;
+  state.resultPrompt = ($('#promptInput').value || '').trim();
   state.threeD = false;
   state.modelUrl = null;
   state.modelBlob = null;
+  state.modelPreviewUrl = null;
   state.modelIsReal = false;
+  state.modelStatus = 'idle';
 
   state.pending = false;
   showTriple(false);
@@ -1961,8 +2502,17 @@ function chooseTriple(url) {
   syncControls();
 
   const promptText = ($('#promptInput').value || '').trim();
+  patchHistoryRecord(state.historyId, {
+    selectedIndex,
+    status: 'selected',
+    modelUrl: null,
+    modelBlob: null,
+    modelPreviewUrl: null,
+    modelIsReal: false,
+    modelStatus: 'idle',
+  }).catch((err) => console.warn('[history] 保存选择失败', err));
   renderAIComment(promptText || '换装');
-  setStatus('已选定这张 · 可点「生成 360° 3D 展示」，只花一次 3D 额度');
+  setStatus('已选定这张 · 可继续微调，或主动生成 360° 3D 展示');
 }
 
 /**
@@ -2000,7 +2550,8 @@ async function runTriple(promptText) {
     return;
   }
 
-  // 先把锁上掉，避免校验/取图那段 await 窗口里被连点第二次
+  // 先建立历史草稿，再锁定控件；整个过程中不会触发任何文件下载。
+  const historyId = createHistoryDraft(text, personData);
   state.busy = true;
   state.pending = false;
   syncControls();
@@ -2010,12 +2561,15 @@ async function runTriple(promptText) {
   badge.classList.add('live');
 
   // 新一批开始：清掉上一轮的 3D 与下载入口
+  state.tried = false;
   showDl('#dlModel', false);
   showDl('#dlImage', false);
   showStageCta(false);
   state.modelUrl = null;
   state.modelBlob = null;
+  state.modelPreviewUrl = null;
   state.modelIsReal = false;
+  state.modelStatus = 'idle';
   setTopProgress(null);
 
   showTriple(true);
@@ -2036,6 +2590,7 @@ async function runTriple(promptText) {
           if (!resp.ok || !data || !data.success || !data.image_url) {
             throw new Error((data && data.error) || 'failed');
           }
+          state.currentCandidates[i] = { url: data.image_url, blob: null };
           fillTripleCard(cards, i, data.image_url);
           done += 1;
           setStatus(`已出 ${done}/3 张 · 同一描述的不同可能`);
@@ -2053,13 +2608,21 @@ async function runTriple(promptText) {
       showTriple(false);
       badge.textContent = 'Error';
       badge.classList.remove('live');
+      await deleteHistoryRecord(historyId);
+      if (state.historyId === historyId) state.historyId = null;
       setStatus('三张都没出来，检查网络或稍后重试');
       return;
     }
 
+    await patchHistoryRecord(historyId, { status: 'ready', candidates: state.currentCandidates });
+    cacheHistoryCandidates(historyId, state.currentCandidates.map((item) => item ? { ...item } : null))
+      .catch((err) => console.warn('[history] 图片缓存失败', err));
+
     // 有结果但还没选：锁住「开始换装」，避免着急时连点又抽一批
-    state.pending = true;
-    setStatus(`已出 ${okCount} 张 · 点一张选定，下方会出现「生成 3D」`);
+    state.pending = !state.tried;
+    setStatus(state.tried
+      ? `已出 ${okCount} 张 · 当前选择已保留，可继续微调或生成 3D`
+      : `已出 ${okCount} 张 · 点一张选定，下方会出现「生成 3D」`);
   } finally {
     state.busy = false;
     syncControls();
@@ -2228,13 +2791,16 @@ $('#btn360').addEventListener('click', async () => {
 
   // 已经拿到过真实模型时，再点只是重新展示，不重复调用（避免白烧额度）
   if (state.modelIsReal && state.modelUrl) {
-    loadModelIntoViewer(state.modelUrl);
-    setStatus('已重新载入 3D 模型 · 想换一版请先「重新换装」');
+    loadModelIntoViewer(state.modelUrl, state.modelPreviewUrl);
+    setStatus('正在重新载入真实 3D 模型 · 不会重复生成或扣除额度');
     return;
   }
 
   state.threeDLoading = true;
+  state.modelStatus = 'loading';
   progressText = '';
+  patchHistoryRecord(state.historyId, { modelStatus: 'loading' })
+    .catch((err) => console.warn('[history] 保存 3D 状态失败', err));
 
   const btn = $('#btn360');
   const btnText = btn.querySelector('.btn-text');
@@ -2255,8 +2821,9 @@ $('#btn360').addEventListener('click', async () => {
     const taskId = created.taskId;
 
     if (created.mode === 'demo') {
-      setStatus(created.message || '3D 服务不可用，已切换演示模型');
-    } else if (created.mode === 'multiview') {
+      throw new Error(created.message || '3D 服务当前不可用，请稍后重试');
+    }
+    if (created.mode === 'multiview') {
       setStatus('已按四视图重建，正在生成模型…');
     } else {
       setStatus('3D 任务已提交，正在生成模型…');
@@ -2282,6 +2849,7 @@ $('#btn360').addEventListener('click', async () => {
       if (!checkResp.ok) continue;
 
       const checkData = await checkResp.json();
+      if (checkData.demo) throw new Error(checkData.message || '3D 服务当前不可用');
       const status = checkData.status || (checkData.output && checkData.output.task_status);
 
       if (typeof checkData.progress === 'number') {
@@ -2306,30 +2874,56 @@ $('#btn360').addEventListener('click', async () => {
     state.threeD = true;
     state.modelUrl = modelUrl;
     state.modelBlob = null;
+    state.modelPreviewUrl = previewUrl;
     state.modelIsReal = true;
+    state.modelStatus = 'ready';
     setTopProgress(100);
+    patchHistoryRecord(state.historyId, {
+      modelUrl,
+      modelPreviewUrl: previewUrl,
+      modelIsReal: true,
+      modelStatus: 'ready',
+    }).catch((err) => console.warn('[history] 保存 3D 记录失败', err));
 
-    // Tripo 链接只有 5 分钟有效，成功后尽量把文件缓存到内存，下载时就不怕过期。
-    // 但高模可能有几十 MB，不能无脑驻留内存，超过阈值就放弃缓存、按下需再取。
-    prefetchModelBlob(modelUrl).then((blob) => {
-      if (blob) state.modelBlob = blob;
-      showDl('#dlModel', true);
-    });
+    // 只在内存/浏览器数据库缓存，是否下载为文件始终由用户主动决定。
+    const completedHistoryId = state.historyId;
+    prefetchModelBlob(modelUrl).then(async (blob) => {
+      if (blob) {
+        if (state.modelUrl === modelUrl) state.modelBlob = blob;
+        await patchHistoryRecord(completedHistoryId, { modelBlob: blob });
+      }
+      if (state.modelUrl === modelUrl) showDl('#dlModel', true);
+    }).catch((err) => console.warn('[history] 模型缓存失败', err));
 
     loadModelIntoViewer(modelUrl, previewUrl);
-    setStatus('3D 模型加载中…');
+    setStatus('真实 3D 模型加载中…');
   } catch (err) {
-    console.warn('[3d] fallback to demo model:', err);
-    state.threeD = true;
-    state.modelUrl = DEMO_MODEL_URL;
+    console.warn('[3d] generation failed:', err);
+    state.threeD = false;
+    state.modelUrl = null;
     state.modelBlob = null;
+    state.modelPreviewUrl = null;
     state.modelIsReal = false;
-    loadModelIntoViewer(DEMO_MODEL_URL);
-    setStatus(`3D 生成未成功（${err.message}）· 已加载演示模型`);
+    state.modelStatus = 'failed';
+    showDl('#dlModel', false);
+    showResult(state.resultImageUrl);
+    $('#stageBadge').textContent = '3D FAILED';
+    $('#stageBadge').classList.remove('live');
+    patchHistoryRecord(state.historyId, {
+      modelUrl: null,
+      modelBlob: null,
+      modelPreviewUrl: null,
+      modelIsReal: false,
+      modelStatus: 'failed',
+      modelError: err.message,
+    }).catch((historyErr) => console.warn('[history] 保存失败状态出错', historyErr));
+    setStatus(`真实 3D 生成未成功（${err.message}）· 已保留换装图，可点击重试；不会用演示模型冒充`);
   } finally {
     state.threeDLoading = false;
     setTopProgress(null);
-    btnText.textContent = state.threeD ? '360° 展示已开启' : '生成 360° 3D 展示';
+    btnText.textContent = state.modelIsReal
+      ? '查看已生成 3D'
+      : (state.modelStatus === 'failed' ? '重试 3D 生成' : '生成 360° 3D 展示');
     syncControls();
   }
 });
@@ -2363,8 +2957,8 @@ async function loadModelIntoViewer(url, previewUrl = null) {
   placeholder.classList.add('fade-out');
   setTimeout(() => placeholder.classList.add('hidden'), 460);
 
-  badge.textContent = '360° LIVE';
-  badge.classList.add('live');
+  badge.textContent = state.modelIsReal ? 'REAL 3D LIVE' : '3D PREVIEW';
+  badge.classList.toggle('live', state.modelIsReal);
 
   const reveal = () => {
     clearTimeout(mvSlowTimer);
@@ -2372,7 +2966,7 @@ async function loadModelIntoViewer(url, previewUrl = null) {
     mv.classList.remove('hidden');
     setStageStatus(null);
     setTopProgress(null);
-    setStatus('360° 展示已就绪 · 拖拽旋转 / 双指缩放');
+    setStatus('真实 3D 展示已就绪 · 拖拽旋转 / 双指缩放');
   };
 
   // 同一个地址且已经加载完成时浏览器不会再触发 load 事件，直接显示，避免白等
@@ -2400,6 +2994,8 @@ async function loadModelIntoViewer(url, previewUrl = null) {
   mv.addEventListener('error', () => {
     clearTimeout(mvSlowTimer);
     mvLoading.classList.add('hidden');
+    badge.textContent = '3D LOAD ERROR';
+    badge.classList.remove('live');
     // Tripo 的模型链接有时不带 CORS 头，model-viewer 拉不到时退化成静态预览图
     if (previewUrl) {
       mv.classList.add('hidden');
@@ -2414,75 +3010,190 @@ async function loadModelIntoViewer(url, previewUrl = null) {
 
   mv.src = url;
 
-  // 90 秒还没 load 才判定失败。高模（40MB 级）在正常网络下也要几十秒，
-  // 阈值太短会误杀；这里只在真正卡死时才退回演示模型。
+  // 高模加载可能较慢；超时就明确提示，不再自动替换为与角色无关的演示模型。
   clearTimeout(mvSlowTimer);
   mvSlowTimer = setTimeout(() => {
-    if (mv.loaded) return;
-    if (url === DEMO_MODEL_URL) {
-      if (tip) tip.textContent = '演示模型加载超时，请检查网络';
-      setStatus('3D 模型加载超时，请检查网络后重试');
-      return;
-    }
+    if (mv.loaded || mv.dataset.src !== url) return;
     mvLoading.classList.add('hidden');
-    setStatus('3D 模型加载超时 · 已切换为演示模型，可点「下载 3D 模型」另存');
-    loadModelIntoViewer(DEMO_MODEL_URL);
+    badge.textContent = '3D LOAD SLOW';
+    badge.classList.remove('live');
+    setStatus('真实 3D 模型加载较慢 · 可继续等待、刷新后从历史恢复，或主动下载模型');
   }, 90000);
 }
 
 /* =========================================================
-   AI 点评（打字机效果）
+   造型调整与主动导出
+   不做未经验证的“AI 看图点评”，只展示真实设定和可执行操作。
 ========================================================= */
-function buildComments(promptText) {
-  return [
-    { tag: '风格', text: `已按「${promptText}」完成换装，整体氛围与二次元画风保持一致。` },
-    { tag: '细节', text: '服装边缘、褶皱与金属/布料质感处理自然，角色面部特征保留完整。' },
-    { tag: '配色', text: '主色调与角色瞳色、发色形成对比，层次分明，视觉焦点集中。' },
-    { tag: '建议', text: '可继续调整描述词（如材质、配饰、场景），尝试更多风格。' }
-  ];
-}
+const REFINE_PRESETS = {
+  color: '保持角色面部、发型、体型、服装版型和整体构图一致，只调整服装配色，其他细节尽量不变',
+  material: '保持角色面部、发型、体型、服装版型和整体构图一致，只调整服装材质与质感，其他细节尽量不变',
+  accessories: '保持角色面部、发型、体型和整体构图一致，减少不必要的配饰，让造型更简洁',
+};
 
-async function renderAIComment(promptText) {
-  const token = ++state.typingToken;
+function renderAIComment(promptText) {
+  state.typingToken += 1;
   const body = $('#aiBody');
   body.innerHTML = '';
 
-  const comments = buildComments(promptText || '换装');
-
-  for (const item of comments) {
-    if (token !== state.typingToken) return;
-
+  const rows = [
+    { tag: '当前设定', text: promptText || '换装' },
+    { tag: '微调方式', text: '以下操作只会载入当前作品并修改描述，确认后仍需主动点击「开始换装」，不会自动消耗额度。' },
+  ];
+  rows.forEach((item) => {
     const row = document.createElement('div');
-    row.className = 'ai-row';
-    row.innerHTML = `<span class="ai-tag">${item.tag}</span><span class="ai-text"></span>`;
+    row.className = 'ai-row done';
+    const tag = document.createElement('span');
+    tag.className = 'ai-tag';
+    tag.textContent = item.tag;
+    const text = document.createElement('span');
+    text.className = 'ai-text';
+    text.textContent = item.text;
+    row.append(tag, text);
     body.appendChild(row);
+  });
 
-    const textEl = row.querySelector('.ai-text');
-    await typeText(textEl, item.text, 18, token);
-    if (token !== state.typingToken) return;
-    row.classList.add('done');
+  const actions = document.createElement('div');
+  actions.className = 'refine-actions';
+  const buttons = [
+    ['仅改配色', () => prepareRefinement('color')],
+    ['仅改材质', () => prepareRefinement('material')],
+    ['减少配饰', () => prepareRefinement('accessories')],
+    ['自定义微调', () => prepareRefinement('custom')],
+    ['下载角色卡', downloadCharacterCard],
+  ];
+  buttons.forEach(([label, handler]) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'refine-btn';
+    button.textContent = label;
+    button.addEventListener('click', handler);
+    actions.appendChild(button);
+  });
+  body.appendChild(actions);
+}
 
-    await wait(140);
+async function prepareRefinement(kind) {
+  if (state.busy || state.threeDLoading || !state.resultImageUrl) return;
+  const buttons = Array.from(document.querySelectorAll('.refine-btn'));
+  buttons.forEach((button) => { button.disabled = true; });
+  const sourceUrl = state.resultImageUrl;
+  try {
+    setStatus('正在把当前作品载入为新的微调底图…');
+    const blob = state.resultImageBlob || await fetchAsBlob(sourceUrl);
+    const sourceData = await compressImage(blob);
+    state.personFile = null;
+    state.personDataUrl = sourceData;
+    prevPerson.src = sourceUrl;
+    boxPerson.classList.add('has-image');
+    if (kind !== 'custom') {
+      $('#promptInput').value = REFINE_PRESETS[kind];
+    }
+    syncHierarchy();
+    $('#promptInput').focus();
+    $('#promptInput').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setStatus('当前作品已设为微调底图 · 确认描述后主动点击「开始换装」，本操作尚未生成新图');
+  } catch (err) {
+    setStatus(`无法载入微调底图：${err.message}。可先从历史恢复后重试`);
+  } finally {
+    buttons.forEach((button) => { button.disabled = false; });
   }
 }
 
-function typeText(el, text, speed, token) {
-  return new Promise((resolve) => {
-    let i = 0;
-    const timer = setInterval(() => {
-      // 重新生成时立刻停掉上一轮的打字定时器，避免多个定时器同时写同一个位置
-      if (token !== state.typingToken) {
-        clearInterval(timer);
-        resolve();
+function imageFromBlob(blob) {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(blob);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(img);
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error('作品图片解码失败'));
+    };
+    img.src = url;
+  });
+}
+
+function drawWrappedText(ctx, text, x, y, maxWidth, lineHeight, maxLines = 3) {
+  const chars = Array.from(text);
+  let line = '';
+  let lineIndex = 0;
+  for (let i = 0; i < chars.length; i += 1) {
+    const test = line + chars[i];
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line, x, y + lineIndex * lineHeight);
+      line = chars[i];
+      lineIndex += 1;
+      if (lineIndex >= maxLines - 1) {
+        const rest = line + chars.slice(i + 1).join('');
+        let last = rest;
+        while (ctx.measureText(`${last}…`).width > maxWidth && last.length) last = last.slice(0, -1);
+        ctx.fillText(`${last}…`, x, y + lineIndex * lineHeight);
         return;
       }
-      el.textContent = text.slice(0, ++i);
-      if (i >= text.length) {
-        clearInterval(timer);
-        resolve();
-      }
-    }, speed);
-  });
+    } else {
+      line = test;
+    }
+  }
+  if (line) ctx.fillText(line, x, y + lineIndex * lineHeight);
+}
+
+async function downloadCharacterCard() {
+  if (!state.resultImageUrl) return;
+  const buttons = Array.from(document.querySelectorAll('.refine-btn'));
+  buttons.forEach((button) => { button.disabled = true; });
+  try {
+    setStatus('正在准备角色卡，完成后才会开始下载…');
+    const blob = state.resultImageBlob || await fetchAsBlob(state.resultImageUrl);
+    const img = await imageFromBlob(blob);
+    const canvas = document.createElement('canvas');
+    canvas.width = 1200;
+    canvas.height = 1500;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('浏览器不支持角色卡绘制');
+
+    ctx.fillStyle = '#FAF8F2';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#1A1815';
+    ctx.font = '500 42px "Microsoft YaHei", sans-serif';
+    ctx.fillText('次元造物', 60, 78);
+    ctx.fillStyle = '#6E6759';
+    ctx.font = '20px monospace';
+    ctx.fillText('CHARACTER ATELIER', 60, 116);
+    ctx.textAlign = 'right';
+    ctx.fillText(new Date().toLocaleDateString('zh-CN'), 1140, 82);
+    ctx.textAlign = 'left';
+
+    const area = { x: 60, y: 150, w: 1080, h: 1050 };
+    ctx.fillStyle = '#ECE5D8';
+    ctx.fillRect(area.x, area.y, area.w, area.h);
+    const scale = Math.min(area.w / img.naturalWidth, area.h / img.naturalHeight);
+    const w = img.naturalWidth * scale;
+    const h = img.naturalHeight * scale;
+    ctx.drawImage(img, area.x + (area.w - w) / 2, area.y + (area.h - h) / 2, w, h);
+    ctx.strokeStyle = 'rgba(26,24,21,.22)';
+    ctx.strokeRect(area.x, area.y, area.w, area.h);
+
+    ctx.fillStyle = '#A63D2A';
+    ctx.font = '20px monospace';
+    ctx.fillText('DESIGN PROMPT', 60, 1260);
+    ctx.fillStyle = '#57524A';
+    ctx.font = '26px "Microsoft YaHei", sans-serif';
+    drawWrappedText(ctx, state.resultPrompt || '换装', 60, 1310, 1080, 42, 3);
+    ctx.fillStyle = '#6E6759';
+    ctx.font = '18px "Microsoft YaHei", sans-serif';
+    ctx.fillText('由次元造物生成 · 角色卡仅在你主动点击后下载', 60, 1450);
+
+    const cardBlob = await new Promise((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!cardBlob) throw new Error('角色卡导出失败');
+    await saveBlobOrOpen(cardBlob, `次元造物-角色卡-${stamp()}.png`, null);
+  } catch (err) {
+    setStatus(`角色卡准备失败：${err.message}，未触发下载`);
+  } finally {
+    buttons.forEach((button) => { button.disabled = false; });
+  }
 }
 
 /* =========================================================
@@ -2511,6 +3222,7 @@ async function checkBackend() {
 }
 
 setStatus('正在连接后端…');
+refreshHistoryCount();
 checkBackend();
 </script>
 </body>

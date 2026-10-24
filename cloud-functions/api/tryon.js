@@ -13,9 +13,15 @@ export default async function onRequest({ request, env }) {
   if (!body) return json({ success: false, error: '请求体不是合法 JSON' }, 400);
   if (!body.image_base64) return json({ success: false, error: '缺少 image_base64' }, 400);
   if (!body.prompt) return json({ success: false, error: '缺少 prompt' }, 400);
+  if (typeof body.image_base64 !== 'string' || body.image_base64.length > 24_000_000) {
+    return json({ success: false, error: '图片数据无效或超过大小限制' }, 413);
+  }
+  if (typeof body.prompt !== 'string' || !body.prompt.trim() || body.prompt.trim().length > 1000) {
+    return json({ success: false, error: '换装描述需为 1–1000 个字符' }, 400);
+  }
 
   try {
-    const result = await generateOutfit({ imageBase64: body.image_base64, prompt: body.prompt, env });
+    const result = await generateOutfit({ imageBase64: body.image_base64, prompt: body.prompt.trim(), env });
     return json({
       success: true,
       image_url: result.imageUrl,
