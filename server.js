@@ -7,7 +7,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { generateOutfit, getConfig, AppError } from './cloud-functions/_lib/wan.js';
-import { createModelTask, createModelFromMultiview, createMultiviewTask, getModelTask } from './cloud-functions/_lib/three.js';
+import { createModelTask, createModelFromMultiview, createMultiviewTask, getModelTask, getTripoConfig } from './cloud-functions/_lib/three.js';
 
 const ROOT = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 3000);
@@ -23,9 +23,12 @@ app.get('/', (req, res) => res.sendFile(path.join(ROOT, 'public', 'index.html'))
 /* ---------- 健康检查 ---------- */
 app.get('/api/health', (req, res) => {
   const cfg = getConfig();
+  const tripo = getTripoConfig();
+  // 与线上 cloud-functions/api/health.js 保持一致：只暴露四项，不泄露模型名与密钥长度
   res.json({
     ok: true,
     api_key_configured: Boolean(cfg.apiKey),
+    tripo_key_configured: Boolean(tripo.apiKey),
     time: new Date().toISOString(),
   });
 });
