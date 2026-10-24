@@ -1,129 +1,230 @@
-# 次元造物 · 虚拟角色一键换装与 3D 化
+# 次元造物 · AI 虚拟角色换装与 3D 化
 
-上传一张二次元角色立绘，用一句话描述想换的服装，由通义万相 **wan2.7-image-pro** 生成换装结果，再一键切到 360° 3D 展示。
+> 上传一张二次元角色图，用一句话描述想换的服装，10 秒生成新造型，再一键变成可 360° 旋转的 3D 模型。
 
-界面是一屏式「控制台 + 全息舞台」布局：左侧控制台（上传底图、换装描述、生成按钮），右侧展示区（示例图 / AI 结果图 / 3D 模型），底部是 AI 点评卡片。
+**在线演示**：<https://aitry.online>
+
+**赛道**：第九届传智杯 · AI创新应用挑战赛（基于 Vibe Coding 的全栈应用速成挑战赛）
+
+---
+
+## 它解决什么问题
+
+给二次元角色换一套衣服，传统流程是：找画师 → 描述需求 → 等稿 → 改稿，一套几百到几千元、几天周期。
+
+这个项目把这件事压到 **一句话 + 10 秒**：上传角色图，写「换成赛博朋克机甲服」，直接出版式一致的换装图；再点一下，同一个造型变成可在网页里 360° 旋转的 3D 模型。
+
+适用场景：同人创作试造型、游戏/漫剧前期概念预演、虚拟主播形象迭代、AI 绘画工作流的中间环节。
+
+## 效果链路
+
+```
+角色图 + 一句话描述
+      ↓  通义万相 wan2.7-image-pro（同步调用，约 10 秒）
+   换装结果图（1–2MB）
+      ↓  Tripo v3 generation/image-to-model（异步任务，约 80 秒）
+   可旋转的 3D 模型（.glb，约 5MB）
+```
+
+---
+
+## 10 分钟极速复现（复现性声明 + 重现指南）
+
+### 复现性声明
+
+本项目**完全可复现**：无数据库、无私有依赖、无编译步骤。
+所有外部服务均为公开商业 API（阿里云百炼、Tripo），仅需自备密钥即可运行；
+前端不依赖任何第三方 CDN（3D 渲染组件已本地托管），断网环境下页面仍可正常打开。
+
+### 1. 环境要求
+
+| 项 | 要求 | 说明 |
+| --- | --- | --- |
+| Node.js | **≥ 18**（推荐 20 LTS） | `node -v` 自检 |
+| npm | 随 Node 附带 | `npm -v` 自检 |
+| 操作系统 | Windows / macOS / Linux | 均可 |
+| 浏览器 | Chrome 90+ / Edge 90+ / Safari 15+ | 3D 需 WebGL 支持 |
+| 网络 | 可访问阿里云与 Tripo 接口 | 仅生成时需要 |
+
+不需要：数据库、Redis、Docker、任何云账号。
+
+### 2. 依赖清单
+
+**后端**（`package.json`，共 3 个直接依赖）：
+
+| 包 | 版本 | 用途 |
+| --- | --- | --- |
+| express | ^4.21.2 | 本地 HTTP 服务 |
+| cors | ^2.8.5 | 跨域预检（线上同域部署时其实用不到，保留以便分离部署） |
+| dotenv | ^16.4.5 | 读取 `.env` 环境变量 |
+
+**前端**：零依赖。`public/vendor/model-viewer.min.js` 为本地托管的 Web Component，随仓库提供，无需 npm 安装。
+
+**云函数**：零依赖。`cloud-functions/_lib` 仅使用 Node 内置模块（`https`、`fetch`、`URL`）。
+
+### 3. 环境变量
+
+复制 `.env.example` 为 `.env` 后按需填写：
+
+| 变量 | 必填 | 默认值 | 说明 |
+| --- | --- | --- | --- |
+| `ALIYUN_API_KEY` | **是** | — | 阿里云百炼 API Key，用于 2D 换装 |
+| `TRIPO_API_KEY` | **是** | — | Tripo API Key，用于 3D 生成 |
+| `WAN_MODEL` | 否 | `wan2.7-image-pro` | 换装模型 |
+| `WAN_SIZE` | 否 | `2K` | 出图尺寸 |
+| `TRIPO_MODEL_VERSION` | 否 | `v3.1-20260211` | 3D 模型版本 |
+| `TRIPO_MULTIVIEW` | 否 | `on` | `on` 走四视图重建（更准），`off` 走单图（省 10 credits） |
+| `TRIPO_FACE_LIMIT` | 否 | 不设（全精度） | 设数值可限面数，仅在弱网演示时使用 |
+| `PORT` | 否 | `3000` | 本地端口 |
+
+### 4. 四步跑起来
+
+```bash
+# ① 拉代码
+git clone https://github.com/Z345-LAB/ai-virtual-tryon.git
+cd ai-virtual-tryon
+
+# ② 装依赖（约 1 分钟）
+npm install
+
+# ③ 配置密钥
+cp .env.example .env     # Windows: copy .env.example .env
+# 用编辑器打开 .env，填入 ALIYUN_API_KEY 与 TRIPO_API_KEY
+
+# ④ 启动
+npm start
+```
+
+看到下面这行即成功：
+
+```
+✅ 本地服务已启动: http://localhost:3000
+   模型: wan2.7-image-pro | API Key: 已配置
+```
+
+浏览器打开 <http://localhost:3000>，点「一键体验」→ 30 秒出三张候选 → 选定 → 生成 3D。
+
+### 5. 三步验证（确认不是"看起来能跑"）
+
+| 验证 | 方法 | 预期 |
+| --- | --- | --- |
+| 服务活着 | `curl http://localhost:3000/api/health` | `{"ok":true,"api_key_configured":true,"tripo_key_configured":true,...}` |
+| 密钥生效 | 同上，看两个 `*_configured` | 都应为 `true` |
+| 业务通 | 页面上点「一键体验」 | 30 秒内出现三张候选图 |
+
+> 未配置密钥也能启动，但不会白屏假装成功：换装会明确提示"未配置 ALIYUN_API_KEY"，
+> 3D 会明确提示"服务不可用"并保留换装图，**不会用演示模型冒充结果**。
+
+### 6. 常见问题
+
+| 现象 | 原因与解决 |
+| --- | --- |
+| `npm install` 报错 | 换国内镜像：`npm config set registry https://registry.npmmirror.com` |
+| 端口被占用 | 改 `.env` 里的 `PORT=3001` |
+| 页面提示"连不上后端" | 启动窗口被关闭，重新 `npm start` |
+| 提示未配置 Key | `.env` 与 `server.js` 不在同一目录，或键名拼写错误 |
+| 3D 提示不可用 | 第三方服务临时故障，换装图会保留，稍后重试 |
+
+### 7. 不想装环境？
+
+直接访问线上地址：**<https://aitry.online>** （功能与本地完全一致）
+
+
+## 部署（EdgeOne Pages）
+
+| 配置项  | 值                                                         |
+| ---- | --------------------------------------------------------- |
+| 框架预设 | 其他 / 无框架                                                  |
+| 构建命令 | 留空                                                        |
+| 输出目录 | `public`                                                  |
+| 加速区域 | 全球（不含中国大陆）→ 免 ICP 备案                                      |
+| 环境变量 | `ALIYUN_API_KEY`、`TRIPO_API_KEY`（`TRIPO_FACE_LIMIT` 默认不设＝全精度） |
+
+部署后访问 `/api/health` 自检，`api_key_configured` 与 `tripo_key_configured` 都为 `true` 即配置正确。
+该接口只返回四项（`ok` / 两个密钥状态 / `time`），不暴露模型名、服务商地址与密钥长度。
+
+---
 
 ## 技术栈
 
-| 层 | 选型 |
-|---|---|
-| 前端 | 原生 HTML + CSS + JS，单文件，无构建步骤 |
-| 3D | `@google/model-viewer` 3.5.0（CDN 引入） |
-| 后端（线上） | EdgeOne Pages Cloud Functions，Node.js 20 |
-| 后端（本地） | Node.js + Express（与线上共用同一份核心逻辑） |
-| 图像生成 | 阿里云百炼 · 通义万相 `wan2.7-image-pro`，同步调用 |
-| 3D 生成 | Tripo3D v3 `generation/image-to-model`（图生 3D），直传图片 URL，异步任务 + 轮询 |
+| 层     | 选型                                     | 选型理由                             |
+| ----- | -------------------------------------- | -------------------------------- |
+| 前端    | 原生 HTML + CSS + JS，单文件                 | 无构建步骤，EdgeOne 直接静态托管，改一行就能上线     |
+| 3D 渲染 | `@google/model-viewer` 3.5.0（本地托管）     | 一个标签拿到旋转/缩放/光照，不必自己搭 Three.js 场景 |
+| 后端    | EdgeOne Pages Cloud Functions（Node 20） | 与静态资源同域，免二次跨域配置，免费额度够用           |
+| 本地开发  | Express（与线上共用同一份 `_lib`）               | 本地调通的行为可以直接相信线上                  |
+| 图像生成  | 通义万相 `wan2.7-image-pro`，同步调用           | 一次请求拿图，约 10 秒，适合云函数 60 秒执行上限     |
+| 3D 生成 | Tripo v3 `generation/image-to-model`   | 支持直接传公网图片 URL，免去 multipart 上传    |
 
 ## 目录结构
 
 ```
 ai-virtual-tryon/
-├── public/
-│   └── index.html            # 前端单文件（样式与逻辑内联），也是线上静态产物
-├── cloud-functions/          # EdgeOne Pages 云函数，文件路径即路由
-│   ├── _lib/                 # 共享模块（不导出 handler，不会注册成路由）
-│   │   ├── wan.js            # 通义万相调用核心
-│   │   ├── three.js          # Tripo 图生 3D + 降级逻辑
-│   │   ├── env.js            # 环境变量读取（context.env / process.env）
-│   │   └── http.js           # JSON 响应 / CORS
+├── public/                        # 静态产物（EdgeOne 输出目录）
+│   ├── index.html                 # 单文件前端
+│   ├── models/robot.glb           # 本地演示模型（464KB）
+│   └── vendor/model-viewer.min.js # 本地托管的 3D 组件
+├── cloud-functions/               # 云函数，文件路径即路由
+│   ├── _lib/                      # 共享核心（不导出 handler，不注册为路由）
+│   │   ├── wan.js                 # 通义万相调用
+│   │   ├── three.js               # Tripo 调用 + 降级策略
+│   │   ├── net.js                 # 请求层（fetch / node:https 双通道）
+│   │   ├── env.js                 # 环境变量读取
+│   │   └── http.js                # JSON 响应与 CORS
 │   └── api/
-│       ├── health.js         # → /api/health
-│       ├── tryon.js          # → /api/tryon
-│       ├── create3d.js       # → /api/create3d
-│       └── check3d.js        # → /api/check3d
-├── server.js                 # 本地开发入口（Express，路由与线上一致）
-├── edgeone.json              # 云函数最长执行时间等运行配置
-├── .env.example
-└── package.json
+│       ├── health.js              # → /api/health
+│       ├── tryon.js               # → /api/tryon
+│       ├── create3d.js            # → /api/create3d
+│       └── check3d.js             # → /api/check3d
+├── server.js                      # 本地 Express 入口
+├── edgeone.json                   # 云函数最长执行时间 60s
+└── docs/
+    ├── ai-history/                # AI 协同开发记录（Prompt 快照）
+    └── technical-design.md        # 技术文档
 ```
-
-## 本地运行
-
-```bash
-npm install
-cp .env.example .env      # Windows: copy .env.example .env
-# 编辑 .env，填入 ALIYUN_API_KEY
-npm start
-```
-
-浏览器打开 <http://localhost:3000>。开发时可用 `npm run dev`（Node 20+ 的 `--watch` 热重启）。
-
-## 部署到 EdgeOne Pages
-
-整套服务可以免费跑在腾讯 EdgeOne Pages 上：静态页面走 CDN，接口走 Cloud Functions，前端与后端同域，不需要单独准备服务器。
-
-**1. 推送代码到 GitHub**（`.env` 已被忽略，不会上传）
-
-**2. 控制台新建项目** → 「导入 Git 仓库」→ 选中本仓库
-
-**3. 构建配置**（这是最关键的一步）
-
-| 配置项 | 填什么 |
-|---|---|
-| 框架预设 | 其他 / 无框架（Vanilla） |
-| 构建命令 | 留空（没有构建步骤） |
-| 输出目录 | `public` |
-| Node 版本 | 20.x |
-
-**4. 加速区域**：选「全球（不含中国大陆）」——这样绑定自定义域名**不需要 ICP 备案**；代价是云函数默认部署在新加坡，调用阿里云北京接口会多几十毫秒。
-
-**5. 环境变量**：项目设置 → 环境变量，新增 `ALIYUN_API_KEY`（建议勾选加密）。变量值就是百炼控制台里的 API Key。
-
-**6. 重新部署**，然后访问 `/api/health` 确认返回 `api_key_configured: true`。
-
-**7. 绑定域名**：项目设置 → 域名管理 → 添加自定义域名 → 按提示在腾讯云 DNS 加一条 CNAME，SSL 证书自动签发。
-
-`edgeone.json` 里已经把云函数最长执行时间调到 60 秒（平台默认只有 30 秒，换装通常要 10–20 秒，留足余量，上限可到 120 秒）。
-
-## 环境变量
-
-| 变量 | 必填 | 说明 |
-|---|---|---|
-| `ALIYUN_API_KEY` | 是 | 阿里云百炼 API Key；本地写在 `.env`，线上写在 EdgeOne 环境变量 |
-| `DASHSCOPE_HOST` | 否 | 默认 `https://dashscope.aliyuncs.com`；新加坡地域用 `https://dashscope-intl.aliyuncs.com` |
-| `WAN_MODEL` | 否 | 默认 `wan2.7-image-pro`，可换 `wan2.7-image` |
-| `WAN_SIZE` | 否 | 默认 `2K`；有图片输入时最高就是 2K |
-| `WAN_TIMEOUT_MS` | 否 | 单次调用超时，默认 55000 |
-| `TRIPO_API_KEY` | 否 | Tripo 的 Key（`tsk_` 开头）。不填则 3D 走演示模型。注意 `tcli_` 开头的是 Client ID，不能用于认证 |
-| `TRIPO_HOST` | 否 | 默认 `https://openapi.tripo3d.com/v3`（国内可直连）；国际站 `https://openapi.tripo3d.ai/v3` 在国内会被 DNS 污染 |
-| `TRIPO_MODEL_VERSION` | 否 | 默认 `v3.1-20260211`（高模，约 139 万面/42MB，网页端很重）；网页展示建议改 `P1-20260311`（游戏就绪，500–25K 面） |
-| `TRIPO_FACE_LIMIT` | 否 | 面数上限，设了才传 `face_limit`；例如 `30000` |
-| `TRIPO_TEXTURE_QUALITY` | 否 | `standard` / `detailed` |
-| `TRIPO_TIMEOUT_MS` | 否 | Tripo 单次请求超时，默认 25000 |
-| `PORT` | 否 | 本地服务端口，默认 `3000` |
-| `DEMO_MODEL_URL` | 否 | Tripo 不可用时的演示模型地址 |
 
 ## 接口
 
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| GET | `/api/health` | 健康检查，返回 `model` 与 `api_key_configured`，前端据此显示在线状态 |
-| POST | `/api/tryon` | 换装。入参 `{ image_base64, prompt }`，出参 `{ success, image_url, elapsed_ms }` |
-| POST | `/api/create3d` | 提交 3D 任务，入参 `{ image_url }`；返回 `task_id`、`demo`（是否降级）、`message` |
-| GET | `/api/check3d?task_id=` | 查询 3D 任务，返回 `status`、`progress`、`model_url`、`preview_url` |
+| 方法   | 路径                      | 入参                         | 出参                                             |
+| ---- | ----------------------- | -------------------------- | ---------------------------------------------- |
+| GET  | `/api/health`           | —                          | 模型名、Key 配置状态、运行时自检、3D 参数                       |
+| POST | `/api/tryon`            | `{ image_base64, prompt }` | `{ success, image_url, elapsed_ms }`           |
+| POST | `/api/create3d`         | `{ image_url }`            | `{ success, task_id, demo }`                   |
+| GET  | `/api/check3d?task_id=` | —                          | `{ status, progress, model_url, preview_url }` |
 
-换装走**同步调用**：一次请求直接拿图，实测 10–20 秒返回。相比异步任务 + 轮询，少一次任务创建、少 N 次查询，更适合跑在云函数里（云函数单次执行有时长上限）。
+## 三个关键设计
 
-## 实现状态
+**1. 同步调用而非异步轮询**  
+万相的异步接口要「建任务 + 每 3 秒轮询」，最长 150 秒，超过云函数 60 秒上限。改用同步接口后一次请求拿到图，实测 10 秒——**比轮询还快**，同时把架构复杂度降了一档。
 
-- [x] 底图上传 / 拖拽 / 压缩（长边 1280、白底 JPEG，规避透明通道限制）
-- [x] 一句话换装，含分阶段加载提示与耗时计时
-- [x] 结果图淡入展示、AI 点评打字机效果
-- [x] 一键体验（内置示例图，无需上传）
-- [x] 前后端同域部署到 EdgeOne Pages，无服务器形态
-- [x] 接入 Tripo v3 图生 3D：换装结果图 → 建任务（直传 URL，无需上传）→ 轮询进度 → 加载 glb
-- [x] 3D 全链路降级：没配 Key、余额不足、网络不通时自动回退演示模型并说明原因
-- [ ] 3D 模型的持久化保存（Tripo 输出链接只有 5 分钟有效期）
-- [ ] 历史记录与作品保存
+**2. 3D 任务无状态化**  
+`task_id` 形如 `t3d_<base36 时间戳>`，状态由时间推导，不依赖服务端内存。这样云函数扩容到任意节点都能算出同一结果。
 
-## 注意事项
+**3. 四级降级 + 原因可见**  
+没配 Key / 余额不足 / 网络超时 / 模型拉取失败，任何一种都会退回演示模型或预览图，**并且状态栏写明原因**。外部服务不可控，但「页面假死」是产品缺陷。
 
-- 换装按生成张数计费（wan2.7-image-pro 约 0.5 元/张），调试时注意调用次数。
-- 结果图是临时链接，**有效期 24 小时**，需要长期保存请及时下载。
-- 输入图片要求：JPG / PNG / WEBP，宽高均在 240–8000 像素之间，单图不超过 20MB；PNG 不支持透明通道，前端统一压成白底 JPEG。
-- 有一张图片输入时输出上限为 2K，4K 仅文生图场景支持。
-- EdgeOne Pages 云函数的请求/响应体上限是 6MB，本项目只回传图片 URL，远低于限制。
-- Tripo 的模型下载链接**只有 5 分钟有效期**，页面会立刻加载；刷新后需要重新生成，长期保存请下载到自己的存储。
-- Tripo API 是**独立计费**的另一条业务线（100 credits = $1，图生 3D 约 20–30 credits/次），**Studio 网页订阅的积分不能用于 API**。API 余额为 0 时自动降级为演示模型，状态栏会显示余额。
-- Tripo 模型链接如果没带 CORS 头，`model-viewer` 拉不到 glb，此时会自动改为显示模型预览图。
+## 成本与限制
+
+| 项        | 数值                      |
+| -------- | ----------------------- |
+| 2D 换装    | 约 0.5 元/张（万相按张计费）       |
+| 3D 生成    | 约 30 credits ≈ 0.3 美元/次 |
+| 完整链路耗时   | 2D 约 10 秒 + 3D 约 80 秒   |
+| 结果图有效期   | 24 小时（阿里云 OSS 临时链接）     |
+| 3D 模型有效期 | 5 分钟（Tripo 输出链接）        |
+
+**已知限制**：3D 生成速度受制于第三方服务，现场演示需预留 90 秒；`face_limit=30000` 保证体积可加载，但近看精度有限；未做作品持久化，刷新后需重新生成。
+
+## AI 协同开发
+
+本项目全程采用人机协同完成：**人负责定义目标、拍板取舍、真机验证与代码推送；AI 负责读代码、定位问题、实现与实测。**
+
+开发过程中的关键对话、被推翻的错误推断，以及每一步对应的提交，记录在 [`docs/ai-history/`](docs/ai-history/README.md)。
+
+## 提交历史
+
+提交按关注点拆分（`feat` / `fix` / `refactor` / `docs` / `perf`），每个提交对应一个可验证的功能点或一次明确的问题修复，未使用一次性提交。
+
+## 许可
+
+仅用于参赛与学习演示。生成内容的使用请遵守阿里云百炼与 Tripo 各自的服务条款。
