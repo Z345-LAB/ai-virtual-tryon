@@ -78,7 +78,7 @@ curl /api/create3d → "3D 服务不可用，已切换演示模型：未配置 T
 用户贴回的 `/api/health` 是旧结构，看起来像"新代码没部署"。AI 加随机参数重查：
 
 ```bash
-curl "http://aitry.online/api/health?v=$RANDOM"
+curl "https://aitry.online/api/health?v=$RANDOM"
 → tripo_face_limit: 30000   ← 新版本其实已经上线
 ```
 
