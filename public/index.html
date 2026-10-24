@@ -2802,6 +2802,9 @@ function sourceUrlFor3D() {
  * 返回 { taskId, mode: 'multiview' | 'single' | 'demo', message }
  */
 async function create3DTaskId() {
+  // 先取一次源地址：链接过期时直接抛出，避免被下面的 try/catch 误报成"多视图链路异常"
+  const imageUrl = sourceUrlFor3D();
+
   const postJson = (path, payload) =>
     fetch(getApiUrl(path), {
       method: 'POST',
@@ -2811,7 +2814,7 @@ async function create3DTaskId() {
 
   // ---- 先试多视图链路 ----
   try {
-    const mvResp = await postJson('/api/multiview', { image_url: sourceUrlFor3D() });
+    const mvResp = await postJson('/api/multiview', { image_url: imageUrl });
     const mv = await mvResp.json();
 
     if (mv && mv.success && mv.task_id) {
@@ -2859,7 +2862,7 @@ async function create3DTaskId() {
 
   // ---- 回退：单图重建 ----
   setStageStatus('3D 构建中 0%', 0);
-  const resp = await postJson('/api/create3d', { image_url: sourceUrlFor3D() });
+  const resp = await postJson('/api/create3d', { image_url: imageUrl });
   if (!resp.ok) throw new Error('create3d unavailable');
 
   const data = await resp.json();
