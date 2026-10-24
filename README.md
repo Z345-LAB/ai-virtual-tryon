@@ -1,6 +1,6 @@
 # 次元造物 · AI 虚拟角色换装与 3D 化
 
-> 上传一张二次元角色图，用一句话描述想换的服装，10 秒生成新造型，再一键变成可 360° 旋转的 3D 模型。
+> 上传一张二次元角色图，用一句话描述想换的服装，30 秒给出三张同描述的候选，选定一张再变成可 360° 旋转的 3D 模型。
 
 **在线演示**：<https://aitry.online>
 
@@ -12,7 +12,7 @@
 
 给二次元角色换一套衣服，传统流程是：找画师 → 描述需求 → 等稿 → 改稿，一套几百到几千元、几天周期。
 
-这个项目把这件事压到 **一句话 + 10 秒**：上传角色图，写「换成赛博朋克机甲服」，直接出版式一致的换装图；再点一下，同一个造型变成可在网页里 360° 旋转的 3D 模型。
+这个项目把这件事压到 **一句话 + 30 秒**：上传角色图，写「换成赛博朋克机甲服」，一次给出三张同一描述下的候选（单张出图约 10 秒，三张并行约 30 秒）；选定一张，再点一下，同一个造型变成可在网页里 360° 旋转的 3D 模型。
 
 适用场景：同人创作试造型、游戏/漫剧前期概念预演、虚拟主播形象迭代、AI 绘画工作流的中间环节。
 
@@ -20,11 +20,16 @@
 
 ```
 角色图 + 一句话描述
-      ↓  通义万相 wan2.7-image-pro（同步调用，约 10 秒）
-   换装结果图（1–2MB）
-      ↓  Tripo v3 generation/image-to-model（异步任务，约 80 秒）
-   可旋转的 3D 模型（.glb，约 5MB）
+      ↓  通义万相 wan2.7-image-pro（同一 prompt 并行三次，约 30 秒出齐）
+   三张候选图（单张 1.6MB / 2K 约 5.4MB，24 小时有效）
+      ↓  选定一张（可先点「仅改配色」等微调，只改描述、不发请求）
+      ↓  Tripo generation/image-to-multiview（约 21 秒）
+   正 / 侧 / 背 / 右四视图
+      ↓  Tripo generation/multiview-to-model（约 98 秒）
+   可旋转的 3D 模型（.glb，全精度约 40MB / 145 万面）
 ```
+
+> 四视图是可选的：设 `TRIPO_MULTIVIEW=off` 会直接走单图重建（快约 20 秒、省 10 credits，代价是侧脸与五官靠模型猜）。
 
 ---
 
@@ -218,6 +223,7 @@ ai-virtual-tryon/
 │   └── api/
 │       ├── health.js              # → /api/health
 │       ├── tryon.js               # → /api/tryon
+│       ├── multiview.js           # → /api/multiview（单图扩四视图）
 │       ├── create3d.js            # → /api/create3d
 │       └── check3d.js             # → /api/check3d
 ├── server.js                      # 本地 Express 入口
@@ -228,20 +234,23 @@ ai-virtual-tryon/
 
 ## 接口
 
-| 方法   | 路径                      | 入参                         | 出参                                             |
-| ---- | ----------------------- | -------------------------- | ---------------------------------------------- |
-| GET  | `/api/health`           | —                          | 模型名、Key 配置状态、运行时自检、3D 参数                       |
-| POST | `/api/tryon`            | `{ image_base64, prompt }` | `{ success, image_url, elapsed_ms }`           |
-| POST | `/api/create3d`         | `{ image_url }`            | `{ success, task_id, demo }`                   |
-| GET  | `/api/check3d?task_id=` | —                          | `{ status, progress, model_url, preview_url }` |
+| 方法 | 路径 | 入参 | 出参 |
+| --- | --- | --- | --- |
+| GET | `/api/health` | — | `{ ok, api_key_configured, tripo_key_configured, time }`（仅四项，不暴露模型名与密钥长度） |
+| POST | `/api/tryon` | `{ image_base64, prompt }` | `{ success, image_url, elapsed_ms }` |
+| POST | `/api/multiview` | `{ image_url }` | `{ success, task_id, demo }` |
+| POST | `/api/create3d` | `{ image_url }` 或 `{ multiview_task_id }` | `{ success, task_id, demo, mode }`；服务不可用时 `success:false` |
+| GET | `/api/check3d?task_id=` | — | `{ status, progress, model_url, preview_url, views, demo }` |
 
 ## 三个关键设计
 
 **1. 同步调用而非异步轮询**  
 万相的异步接口要「建任务 + 每 3 秒轮询」，最长 150 秒，超过云函数 60 秒上限。改用同步接口后一次请求拿到图，实测 10 秒——**比轮询还快**，同时把架构复杂度降了一档。
 
-**2. 3D 任务无状态化**  
-`task_id` 形如 `t3d_<base36 时间戳>`，状态由时间推导，不依赖服务端内存。这样云函数扩容到任意节点都能算出同一结果。
+**2. 3D 任务无状态**  
+真实任务直接用 Tripo 返回的 `task_id` 查询，云函数不持有任何会话状态，扩容到任意节点都能查到同一个结果。
+连降级路径也遵守这一点：演示任务的 id 形如 `t3d_<base36 时间戳>`，状态由时间推导而非内存，
+所以「连演示兜底也不依赖进程」——同一个 id 在任何节点都会得到同样的结果。
 
 **3. 失败可见 + 可重试**  
 没配 Key / 余额不足 / 网络超时 / 模型加载失败，任何一种都会**明确写出原因并保留已有结果**，允许重试。外部服务不可控，但「页面假死」和「拿假结果冒充」都是产品缺陷——所以 3D 失败时不会退回演示模型，宁可让你看到失败。

@@ -93,11 +93,15 @@ app.post(['/api/create3d', '/functions/create3d'], async (req, res) => {
     : await createModelTask({ imageUrl });
   console.log(`[3D] 任务 ${result.taskId}${result.demo ? `（降级：${result.reason}）` : ''}`);
   res.json({
-    success: true,
-    task_id: result.taskId,
+    // 服务不可用时如实返回 success:false —— 不在接口层假装成功，
+    // 前端据 demo 字段给出「服务不可用 + 可重试」。
+    success: !result.demo,
     demo: Boolean(result.demo),
+    task_id: result.demo ? null : result.taskId,
+    mode: result.demo ? 'demo' : (multiviewTaskId ? 'multiview' : 'single'),
+    error: result.demo ? `3D 服务不可用：${result.reason}` : undefined,
     message: result.demo
-      ? `3D 服务不可用，已切换演示模型：${result.reason}`
+      ? `3D 服务不可用：${result.reason}`
       : '3D 任务已提交，正在进行图生 3D',
   });
 });
@@ -112,6 +116,8 @@ app.get(['/api/check3d', '/functions/check3d'], async (req, res) => {
     progress: result.progress ?? null,
     model_url: result.modelUrl || null,
     preview_url: result.previewUrl || null,
+    // 四视图地址：前端靠 views.front 判断是否走多视图重建，缺了会静默回退单图
+    views: result.views || null,
     demo: Boolean(result.demo),
     message: result.message || null,
   });

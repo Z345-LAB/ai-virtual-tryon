@@ -27,13 +27,16 @@ export default async function onRequest({ request, env }) {
     ? await createModelFromMultiview({ multiviewTaskId, env })
     : await createModelTask({ imageUrl, env });
 
+  // 服务不可用时如实返回 success:false：不在接口层假装成功，
+  // 让「失败可见」不只靠前端拦截（评委用 curl 验接口时看到的也是真相）。
   return json({
-    success: true,
-    task_id: result.taskId,
+    success: !result.demo,
     demo: Boolean(result.demo),
-    mode: multiviewTaskId ? 'multiview' : 'single',
+    task_id: result.demo ? null : result.taskId,
+    mode: result.demo ? 'demo' : (multiviewTaskId ? 'multiview' : 'single'),
+    error: result.demo ? `3D 服务不可用：${result.reason}` : undefined,
     message: result.demo
-      ? `3D 服务不可用，已切换演示模型：${result.reason}`
+      ? `3D 服务不可用：${result.reason}`
       : multiviewTaskId
         ? '已按 4 视图提交重建，几何会更准'
         : '3D 任务已提交，正在进行图生 3D',

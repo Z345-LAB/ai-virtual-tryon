@@ -1621,7 +1621,7 @@ const BACKEND_PORT = '3000';     // 与 .env 里的 PORT 保持一致
 const MAX_UPLOAD_BYTES = 12 * 1024 * 1024;
 const HISTORY_DB_NAME = 'ciyuan-atelier';
 const HISTORY_STORE = 'generations';
-const HISTORY_LIMIT = 20;
+const HISTORY_LIMIT = 10;   // 单条最多约 16MB（3 张 2K 图），10 条约 160MB，避免配额超限
 
 /* 你指定的示例图链接 */
 const PRESET_IMG_URL = 'https://i.postimg.cc/mZq8kJBW/mmexport1792513468133.jpg';
@@ -1645,6 +1645,7 @@ const state = {
   personFile: null,
   personDataUrl: null,
   busy: false,
+  starting: false,   // 入口闸门：覆盖"进入生成前的 await 窗口"，与 busy 分开，避免互相阻塞
   tried: false,
   threeD: false,
   threeDLoading: false,
@@ -1805,6 +1806,12 @@ async function cacheHistoryCandidates(historyId, candidatesToCache) {
   const candidates = await Promise.all(candidatesToCache.map(async (candidate) => {
     if (!candidate?.url || candidate.blob) return candidate;
     try {
+      // 体积守卫：单张超过 MAX_CACHE_BYTES 就不转存 Blob，只保留临时 URL。
+      // 否则 20 条 × (3 张 2K 图 + 40MB 模型) 会把 IndexedDB 配额吃满，
+      // 表现是「历史里的图/模型打不开」，且用户不知道原因。
+      const head = await fetch(candidate.url, { method: 'HEAD', mode: 'cors' }).catch(() => null);
+      const len = Number((head && head.headers.get('content-length')) || 0);
+      if (len > MAX_CACHE_BYTES) return candidate;
       return { ...candidate, blob: await fetchAsBlob(candidate.url) };
     } catch (_) {
       return candidate;
@@ -2020,7 +2027,7 @@ function syncHierarchy() {
    —— 避免重复点击造成重复计费
 ========================================================= */
 function syncControls() {
-  const busy = state.busy || state.threeDLoading;
+  const busy = state.busy || state.starting || state.threeDLoading;
 
   ['#presetOne'].forEach((sel) => {
     const el = $(sel);
@@ -2055,6 +2062,24 @@ function syncControls() {
   if (hero) hero.disabled = busy || state.pending;
 
   syncHierarchy();
+}
+
+/* ---------------------------------------------------------
+   入口闸门
+   目的：`if (state.busy) return` 是异步判断，两个 await 之间
+   连点仍会通过检查，开出第二批任务（一次 6 张、双倍花费）。
+   所以进入函数的**第一行**同步置位，把整个 await 窗口关掉。
+--------------------------------------------------------- */
+function enterStart() {
+  if (state.busy || state.starting) return false;
+  state.starting = true;
+  syncControls();
+  return true;
+}
+
+function leaveStart() {
+  state.starting = false;
+  syncControls();
 }
 
 /* =========================================================
@@ -2523,7 +2548,8 @@ function chooseTriple(url) {
  * 风格由用户的描述决定，这里只负责多给几个候选，不擅自换风格。
  */
 async function runTriple(promptText) {
-  if (state.busy) return;
+  // 同步上锁：必须在任何 await 之前，否则连点会开出第二批任务
+  if (!enterStart()) return;
 
   // 没有底图时自动载入内置示例，避免出现点了就报错的按钮
   if (!state.personFile && !state.personDataUrl) {
@@ -2537,6 +2563,7 @@ async function runTriple(promptText) {
       syncHierarchy();
     } catch (err) {
       setStatus('示例角色载入失败，请上传自己的底图');
+      leaveStart();
       return;
     }
   }
@@ -2544,12 +2571,14 @@ async function runTriple(promptText) {
   const personData = await getPersonDataUrl();
   if (!personData) {
     setStatus('角色底图读取失败');
+    leaveStart();
     return;
   }
 
   const text = String(promptText || '').trim();
   if (!text) {
     setStatus('请先填写换装描述');
+    leaveStart();
     return;
   }
 
@@ -2557,6 +2586,7 @@ async function runTriple(promptText) {
   const historyId = createHistoryDraft(text, personData);
   state.busy = true;
   state.pending = false;
+  leaveStart();      // 已进入生成阶段，改由 busy 负责锁
   syncControls();
 
   const badge = $('#stageBadge');
@@ -2628,6 +2658,7 @@ async function runTriple(promptText) {
       : `已出 ${okCount} 张 · 点一张选定，下方会出现「生成 3D」`);
   } finally {
     state.busy = false;
+    state.starting = false;   // 兜底：任何异常路径都不会把闸门卡死
     syncControls();
   }
 }
@@ -2649,7 +2680,8 @@ $('#tripleClose').addEventListener('click', () => {
    一键体验
 ========================================================= */
 async function runPreset(kind) {
-  if (state.busy) {
+  // 同步上锁：这一层要覆盖 urlToBase64 的 await 窗口
+  if (!enterStart()) {
     setStatus('正在生成中，请稍候…');
     return;
   }
@@ -2669,6 +2701,7 @@ async function runPreset(kind) {
     state.personFile = null;
     state.personDataUrl = base64Data;
     syncHierarchy();
+    leaveStart();          // 交给 runTriple 接管（它会在自己入口重新上锁）
     // 进来的人最想看的是「同一角色能有多少种样子」，所以直接给三套
     await runTriple(promptText);
   } catch (e) {
@@ -2676,6 +2709,7 @@ async function runPreset(kind) {
     setStatus('⚠ 预设图转 Base64 失败，请检查网络或图片链接是否允许跨域(CORS)。');
     boxPerson.classList.remove('has-image');
     prevPerson.removeAttribute('src');
+    leaveStart();          // 失败也要放锁，否则按钮永久变灰
   }
 }
 
@@ -2784,8 +2818,9 @@ async function create3DTaskId() {
   if (!resp.ok) throw new Error('create3d unavailable');
 
   const data = await resp.json();
+  if (data && data.demo) throw new Error(data.message || data.error || '3D 服务当前不可用');
   const taskId = data.task_id || (data.output && data.output.task_id);
-  if (!taskId) throw new Error('no task_id');
+  if (!taskId) throw new Error(data && (data.message || data.error) || 'no task_id');
   return { taskId, mode: data.demo ? 'demo' : 'single', message: data.message };
 }
 
