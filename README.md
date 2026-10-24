@@ -235,6 +235,8 @@ ai-virtual-tryon/
     └── ai-history/                # AI 对话历史（6 条 Prompt 链）
 ```
 
+> 目录结构为**仓库**结构。网盘分发的源码包中，技术文档只提供 `TECHNICAL.pdf`（13 页），不含 markdown 源文件。
+
 ## 接口
 
 | 方法 | 路径 | 入参 | 出参 |
