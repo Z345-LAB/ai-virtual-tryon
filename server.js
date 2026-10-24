@@ -18,6 +18,8 @@ app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ limit: '25mb', extended: true }));
 // 静态产物就是 public/ 目录，与线上 EdgeOne Pages 的输出目录保持一致
 app.use(express.static(path.join(ROOT, 'public')));
+// 技术文档也挂出来，评委可直接在浏览器里看，不必去文件夹翻
+app.use('/docs', express.static(path.join(ROOT, 'docs')));
 app.get('/', (req, res) => res.sendFile(path.join(ROOT, 'public', 'index.html')));
 
 /* ---------- 健康检查 ---------- */
